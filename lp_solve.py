@@ -1,5 +1,6 @@
 import pulp as pulp
 from pulp import constants
+from pulp.pulp import lpSum
 import params
 from random import Random
 import numpy as np
@@ -68,8 +69,9 @@ class cassandra:
     def __init__(self) -> None:
         pass
 
-    def estimateCost(self, noVMs, which_vm):
-        return noVMs * self.vm_costs * self.vm_costs[which_vm]
+    ### returns the cost per hour ###
+    def estimateCost(self, noVMs: int, which_vm) -> float:
+        return noVMs * np.dot(self.vm_costs, list(which_vm))
 
 
 dynamoDB = dynamoDB()
@@ -89,8 +91,9 @@ t_w = [random.randint(1, 50)] * N
 m = pulp.LpVariable("M", lowBound=3, cat=constants.LpInteger)
 # Type of VM employed, we assume we are going to use only one type (see pdf)
 # (in the PDF formulation, this corresponds to \vec{m})
-mt = pulp.LpVariable.dict("mt", (i for i in range(13)), cat=constants.LpBinary)
-
+mt = pulp.LpVariable.dicts(
+    "mt", (i for i in range(13)), lowBound=0, upBound=1, cat=constants.LpBinary
+)
 # Optimization Problem
 problem = pulp.LpProblem("ItemsDisplacement", pulp.LpMinimize)
 
@@ -107,9 +110,15 @@ problem += (
 
 # constraints
 # 1: enough storage in m machines of type mt to hold all data * RF
-problem += np.dot(list(x), s) * cassandra.replication_factor / m <= params.MAX_SIZE
+problem += (
+    lpSum(x[i] * s[i] for i in range(N)) * cassandra.replication_factor / np.dot(m, mt)
+    <= params.MAX_SIZE
+)
+
+# np.dot(list(x), s) * cassandra.replication_factor / m.value() <= params.MAX_SIZE
+
 # 2: enough IOPS in the machines to sustain the total throughput of all data.
-problem += np.dot(list(x), (t_w + t_r)) / m <= np.dot(cassandra.vm_IOPS, mt)
+problem += np.dot(list(x), (t_w + t_r)) / m.value() <= np.dot(cassandra.vm_IOPS, mt)
 # 3: only one type of VM used in the cluster
 problem += pulp.lpSum(mt[i] for i in range(N) == 1)
 # 4: continous relaxation of placement vector to avoid a bunch of binary variables.
