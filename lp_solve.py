@@ -2,7 +2,6 @@ import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
 import params
-from random import Random
 import numpy as np
 import random
 
@@ -79,13 +78,14 @@ cassandra = cassandra()
 # Number of items N
 N = params.N
 # Placement vector x
-x = pulp.LpVariable.dicts("x", (i for i in range(N)))
+x = pulp.LpVariable.dicts("x", (i for i in range(N)), 0, 1)
 
 # Item sizes (Bytes) -> [1B-1GB] (s)
-s = [random.randint(1, 2e30)] * N
+s = (2e30 - 1) * np.random.random(N) + 1
 # Items' read/write throughput (tr, tw) (ops per second)
-t_r = [random.randint(1, 50)] * N
-t_w = [random.randint(1, 50)] * N
+t_r = np.random.randint(1, 50, N)
+t_w = np.random.randint(1, 50, N)
+
 # Number of VMs
 # (in the Mathematical formulation, this corresponds to M)
 m = pulp.LpVariable("M", lowBound=3, cat=constants.LpInteger)
@@ -109,22 +109,36 @@ problem += (
 )
 
 # constraints
+# --------------------########## SIZE ##########--------------------
 # 1: enough storage in m machines of type mt to hold all data * RF
 problem += (
-    lpSum(x[i] * s[i] for i in range(N)) * cassandra.replication_factor / np.dot(m, mt)
-    <= params.MAX_SIZE
+    lpSum(x[i] * s[i] for i in range(N))
+    <= params.MAX_SIZE * np.dot(m, list(mt)) / cassandra.replication_factor
 )
 
 # np.dot(list(x), s) * cassandra.replication_factor / m.value() <= params.MAX_SIZE
 
 # 2: enough IOPS in the machines to sustain the total throughput of all data.
-problem += np.dot(list(x), (t_w + t_r)) / m.value() <= np.dot(cassandra.vm_IOPS, mt)
+# --------------------########## IOPS ##########--------------------
+problem += lpSum((list(x) * (t_w + t_r))[i] for i in range(N)) <= m * np.dot(
+    cassandra.vm_IOPS, list(mt)
+)
+
 # 3: only one type of VM used in the cluster
-problem += pulp.lpSum(mt[i] for i in range(N) == 1)
+# --------------------########## ONEVM ##########--------------------
+problem += pulp.lpSum(mt[i] for i in range(N)) == 1
+
 # 4: continous relaxation of placement vector to avoid a bunch of binary variables.
-# at the end, x[i] > 0.5 ? IaaS : DBaaS
+# --------------------########## RELAXATION ##########--------------------
+# at the end, if x[i] > 0.5 --> IaaS, otherwise DBaaS
 for i in range(N):
     problem += x[i] <= 1
+
+# there is a good chance that this can be dropped as it is already constrained
+# by the definition of x with lowBound=0 and upBound=1
+
+# --------------------########## ATLEAST3VMS ##########--------------------
+problem += m >= 3
 
 print(f"Items: {s}")
 print(f"Initial Displacement: {x}")
