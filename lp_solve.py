@@ -3,7 +3,6 @@ from pulp import constants
 from pulp.pulp import lpSum
 import params
 import numpy as np
-import random
 
 
 class dynamoDB:
@@ -24,6 +23,7 @@ class dynamoDB:
         )
 
 
+#%%
 class cassandra:
     replication_factor = 3
 
@@ -61,18 +61,33 @@ class cassandra:
             80000,
         ]
     )
-    vm_costs = np.array(
-        [0.1, 0.2, 0.4, 0.8, 2, 3.2, 0.156, 0.312, 0.624, 1.248, 2.496, 1.992, 4.992]
-    )
+    vm_costs = [
+        0.1,
+        0.2,
+        0.4,
+        0.8,
+        2,
+        3.2,
+        0.156,
+        0.312,
+        0.624,
+        1.248,
+        2.496,
+        1.992,
+        4.992,
+    ]
 
     def __init__(self) -> None:
         pass
 
     ### returns the cost per hour ###
     def estimateCost(self, noVMs: int, which_vm) -> float:
+        print(self.vm_costs)
+        print(list(which_vm))
         return noVMs * np.dot(self.vm_costs, list(which_vm))
 
 
+#%%
 dynamoDB = dynamoDB()
 cassandra = cassandra()
 # Number of items N
@@ -94,6 +109,9 @@ m = pulp.LpVariable("M", lowBound=3, cat=constants.LpInteger)
 mt = pulp.LpVariable.dicts(
     "mt", (i for i in range(13)), lowBound=0, upBound=1, cat=constants.LpBinary
 )
+
+k = pulp.LpVariable("k", lowBound=0, cat=constants.LpBinary)
+
 # Optimization Problem
 problem = pulp.LpProblem("ItemsDisplacement", pulp.LpMinimize)
 
@@ -128,31 +146,24 @@ problem += lpSum((list(x) * (t_w + t_r))[i] for i in range(N)) <= m * np.dot(
 # --------------------########## ONEVM ##########--------------------
 problem += pulp.lpSum(mt[i] for i in range(N)) == 1
 
-# 4: continous relaxation of placement vector to avoid a bunch of binary variables.
-# --------------------########## RELAXATION ##########--------------------
-# at the end, if x[i] > 0.5 --> IaaS, otherwise DBaaS
-for i in range(N):
-    problem += x[i] <= 1
-
-# there is a good chance that this can be dropped as it is already constrained
-# by the definition of x with lowBound=0 and upBound=1
+# 4: Ensuring that mt[i] is binary
+# already done in the definition of the variable
 
 # --------------------########## ATLEAST3VMS ##########--------------------
 problem += m >= 3
 
+problem += m == k * params.REPLICATION_FACTOR
+
 print(f"Items: {s}")
-print(f"Initial Displacement: {x}")
 solver = pulp.getSolver("PULP_CBC_CMD")
 result = problem.solve(solver)
 print(f"Final Displacement: {x}")
 # cost of Dynamo if all the items were stored there
-cost_dynamo = dynamoDB.estimateCost(t_read=t_r, t_write=t_w, db_size=sum(s))
+cost_dynamo = dynamoDB.estimateCost_hour(
+    placement=x, t_read=t_r, t_write=t_w, db_size=sum(s)
+)
 
-for i in range(13):
-    if mt[i] == 1:
-        vm_type = i
-        break
-cost_cassandra = cassandra.estimateCost(noVMs=m.value, which_vm=vm_type)
+cost_cassandra = cassandra.estimateCost(noVMs=m.value, which_vm=mt)
 
 print(
     f"The best solution is: {'Dynamo' if cost_dynamo > cost_cassandra else 'Cassandra'} and costs {max(cost_cassandra,cost_dynamo)}",
