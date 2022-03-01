@@ -82,15 +82,15 @@ class cassandra:
 
     ### returns the cost per hour ###
     def estimateCost(self, noVMs: int, which_vm: int) -> float:
-        print(self.vm_costs)
-        print(which_vm)
+        # print(self.vm_costs)
+        # print(which_vm)
         return noVMs * self.vm_costs[which_vm]
-
-    def getSize(self, which_vm: int):
-        return self.vm_costs[which_vm]
 
     def getIops(self, which_vm: int):
         return self.vm_IOPS[which_vm]
+
+    def getType(self, which_type: int):
+        return self.vm_types[which_type]
 
 
 #%%
@@ -99,14 +99,16 @@ cassandra = cassandra()
 # Number of items N
 N = params.N
 # Placement vector x
-x = pulp.LpVariable.dicts("x", (i for i in range(N)), 0, 1)
+x = pulp.LpVariable.dicts("placement", (i for i in range(N)), lowBound=0, upBound=1)
 
 # Item sizes (Bytes) -> [1B-1GB] (s)
-s = (2e30 - 1) * np.random.random(N) + 1
+s = (2e30 - 1) * np.random.rand(N) + 1
+
+
 # Items' read/write throughput (tr, tw) (ops per second)
 t_r = np.random.randint(1, 50, N)
 t_w = np.random.randint(1, 50, N)
-
+iops = [x + y for (x, y) in zip(t_r, t_w)]
 # Number of VMs
 # (in the Mathematical formulation, this corresponds to M)
 m = pulp.LpVariable("M", lowBound=3, cat=constants.LpInteger)
@@ -119,8 +121,11 @@ m = pulp.LpVariable("M", lowBound=3, cat=constants.LpInteger)
 
 k = pulp.LpVariable("k", lowBound=0, cat=constants.LpBinary)
 
-for mt in range(13):
+print(f"Items: {s}")
+solver = pulp.getSolver("PULP_CBC_CMD")
 
+for mt in range(13):
+    print(f"Instantiating the problem with {cassandra.getType(mt)}")
     # Optimization Problem
     problem = pulp.LpProblem("ItemsDisplacement", pulp.LpMinimize)
 
@@ -149,35 +154,46 @@ for mt in range(13):
 
     # 2: enough IOPS in the machines to sustain the total throughput of all data.
     # --------------------########## IOPS ##########--------------------
-    problem += lpSum((list(x) * (t_w + t_r))[i] for i in range(N)) <= m * np.dot(
-        cassandra.vm_IOPS, list(mt)
+
+    # contains iops (t_r+t_w) of only cassandra items
+    # the iops of indexes of items stored in Dynamo
+    # are 0
+    cassandra_iops = [x * y for (x, y) in zip(x, iops)]
+
+    # sum of all iops of items stored in cassandra <= total iops of m machines
+    problem += lpSum(cassandra_iops[i] for i in range(N)) <= m * cassandra.getIops(
+        which_vm=mt
     )
 
     # 3: only one type of VM used in the cluster
     # --------------------########## ONEVM ##########--------------------
-    problem += pulp.lpSum(mt[i] for i in range(N)) == 1
+    # problem += pulp.lpSum(mt[i] for i in range(N)) == 1
+    # THIS CAN BE DROPPED
 
     # 4: Ensuring that mt[i] is binary
     # already done in the definition of the variable
+    # CAN BE DROPPED AS WELL
 
     # --------------------########## ATLEAST3VMS ##########--------------------
     problem += m >= 3
 
+    # --------------------########## m IS MULTIPLE OF RF ##########--------------------
     problem += m == k * params.REPLICATION_FACTOR
 
-    print(f"Items: {s}")
-    solver = pulp.getSolver("PULP_CBC_CMD")
     result = problem.solve(solver)
+    print(f"Cassandra cluster will have {m.value()} machines")
     print(f"Final Displacement: {x}")
     # cost of Dynamo if all the items were stored there
     cost_dynamo = dynamoDB.estimateCost_hour(
         placement=x, t_read=t_r, t_write=t_w, db_size=sum(s)
     )
+    print(f"Cost of Dynamo = {cost_dynamo}")
 
-    cost_cassandra = cassandra.estimateCost(noVMs=m.value, which_vm=mt)
+    cost_cassandra = cassandra.estimateCost(noVMs=m.value(), which_vm=mt)
+    print(f"Cost of Cassandra = {cost_cassandra}")
 
     print(
-        f"The best solution is: {'Dynamo' if cost_dynamo > cost_cassandra else 'Cassandra'} and costs {max(cost_cassandra,cost_dynamo)}",
+        f"The best solution is: {'Dynamo' if cost_dynamo > cost_cassandra else 'Cassandra'}\n\n\n",
     )
 
 # %%
