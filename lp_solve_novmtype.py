@@ -119,8 +119,6 @@ m = pulp.LpVariable("M", lowBound=3, cat=constants.LpInteger)
 # WE WILL SOLVE A STANDALONE INSTANCE OF THE PROBLEM FOR EVERY TYPE OF MACHINE
 # AND COMPARE THE SOLUTIONS
 
-k = pulp.LpVariable("k", lowBound=0, cat=constants.LpBinary)
-
 print(f"Items: {s}")
 solver = pulp.getSolver("PULP_CBC_CMD")
 
@@ -176,9 +174,6 @@ for mt in range(13):
 
     # --------------------########## ATLEAST3VMS ##########--------------------
     problem += m >= 3
-
-    # --------------------########## m IS MULTIPLE OF RF ##########--------------------
-    problem += m == k * params.REPLICATION_FACTOR
 
     result = problem.solve(solver)
     print(f"Cassandra cluster will have {m.value()} machines")
