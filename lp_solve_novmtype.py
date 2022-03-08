@@ -1,194 +1,192 @@
+from cmath import inf
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
 import params
 import numpy as np
+import sys
 
+cost_write = 1.4842e5 / 1e6  # cost per write
+cost_read = 0.2968e5 / 1e6  # cost per read
+cost_storage = 0.29715e5  # cost per GB
 
-class dynamoDB:
-    def __init__(self):
-        self.cost_write = 1.4842 / 1e6  # cost per write
-        self.cost_read = 0.2968 / 1e6  # cost per read
-        self.cost_storage = 0.29715  # cost per GB
-
-    def estimateCost_hour(self, placement, t_read, t_write, db_size):
-        # DynamoDB cost as per AWS website
-        storage_cost = (db_size - 25) * self.cost_storage if db_size > 25 else 0
-        return (
-            np.dot(list(placement), t_read) * 60 * 60 * self.cost_read
-            # t_r is in ops/sec, we are estimating the cost per hour so we need the throughput in ops/hour
-            + np.dot(list(placement), t_write) * 60 * 60 * self.cost_write
-            # same for t_w
-            + storage_cost
-        )
-
-
-#%%
-class cassandra:
-    replication_factor = 3
-
-    vm_types = np.array(
-        [
-            "m4.large",
-            "m4.xlarge",
-            "m4.2xlarge",
-            "m4.4xlarge",
-            "m4.10xlarge",
-            "m4.16xlarge",
-            "i3.large",
-            "i3.xlarge",
-            "i3.2xlarge",
-            "i3.4xlarge",
-            "i3.8xlarge",
-            "i3.16xlarge",
-            "i3.metal",
-        ]
-    )
-    vm_IOPS = np.array(
-        [
-            3600,
-            6000,
-            8000,
-            16000,
-            32000,
-            65000,
-            3000,
-            6000,
-            12000,
-            16000,
-            32500,
-            65000,
-            80000,
-        ]
-    )
-    vm_costs = [
-        0.1,
-        0.2,
-        0.4,
-        0.8,
-        2,
-        3.2,
-        0.156,
-        0.312,
-        0.624,
-        1.248,
-        2.496,
-        1.992,
-        4.992,
+vm_types = np.array(
+    [
+        "m4.large",
+        "m4.xlarge",
+        "m4.2xlarge",
+        "m4.4xlarge",
+        "m4.10xlarge",
+        "m4.16xlarge",
+        "i3.large",
+        "i3.xlarge",
+        "i3.2xlarge",
+        "i3.4xlarge",
+        "i3.8xlarge",
+        "i3.16xlarge",
+        "i3.metal",
     ]
+)
+vm_IOPS = np.array(
+    [
+        3600,
+        6000,
+        8000,
+        16000,
+        32000,
+        65000,
+        3000,
+        6000,
+        12000,
+        16000,
+        32500,
+        65000,
+        80000,
+    ]
+)
+vm_costs = [
+    0.1,
+    0.2,
+    0.4,
+    0.8,
+    2,
+    3.2,
+    0.156,
+    0.312,
+    0.624,
+    1.248,
+    2.496,
+    1.992,
+    4.992,
+]
 
-    def __init__(self) -> None:
-        pass
 
-    ### returns the cost per hour ###
-    def estimateCost(self, noVMs: int, which_vm: int) -> float:
-        # print(self.vm_costs)
-        # print(which_vm)
-        return noVMs * self.vm_costs[which_vm]
-
-    def getIops(self, which_vm: int):
-        return self.vm_IOPS[which_vm]
-
-    def getType(self, which_type: int):
-        return self.vm_types[which_type]
+def estimateCost(noVMs: int, which_vm: int) -> float:
+    # print(self.vm_costs)
+    # print(which_vm)
+    return noVMs * vm_costs[which_vm]
 
 
-#%%
-dynamoDB = dynamoDB()
-cassandra = cassandra()
-# Number of items N
+def getIops(which_vm: int):
+    return vm_IOPS[which_vm]
+
+
+def getType(which_type: int):
+    return vm_types[which_type]
+
+
+sys.stdout = open("/Users/enrico/Desktop/results.txt", "w")
 N = params.N
+s = list((2 ** 30 - 1) * np.random.rand(N) + 1)
+
+# Number of items N
+RF = params.REPLICATION_FACTOR
 # Placement vector x
-x = pulp.LpVariable.dicts("placement", (i for i in range(N)), lowBound=0, upBound=1)
-
+x = pulp.LpVariable.dicts(
+    "Placement",
+    indices=[i for i in range(N)],
+    cat=constants.LpBinary,
+)
 # Item sizes (Bytes) -> [1B-1GB] (s)
-s = (2e30 - 1) * np.random.rand(N) + 1
-
 
 # Items' read/write throughput (tr, tw) (ops per second)
-t_r = np.random.randint(1, 50, N)
-t_w = np.random.randint(1, 50, N)
+t_r = np.random.randint(1, 500, N)
+t_w = np.random.randint(1, 500, N)
 iops = [x + y for (x, y) in zip(t_r, t_w)]
-# Number of VMs
-# (in the Mathematical formulation, this corresponds to M)
-m = pulp.LpVariable("M", lowBound=3, cat=constants.LpInteger)
-# Type of VM employed, we assume we are going to use only one type (see pdf)
-# (in the PDF formulation, this corresponds to \vec{m})
-# THIS VERSION AIMS AT MAKING THE PROBLEM FEASIBLE. THE MACHINE TYPE WILL THEN BE
-# A PARAMETER RATHER THAN A DECISION VARIABLE
-# WE WILL SOLVE A STANDALONE INSTANCE OF THE PROBLEM FOR EVERY TYPE OF MACHINE
-# AND COMPARE THE SOLUTIONS
 
-print(f"Items: {s}")
+# for every machine type, it contains a tuple (pair) of the cost-wise best number of machines and its associated cost
+costs_per_type = []
+# print(f"Items: {s}")
 solver = pulp.getSolver("PULP_CBC_CMD")
 
 for mt in range(13):
-    print(f"Instantiating the problem with {cassandra.getType(mt)}")
-    # Optimization Problem
-    problem = pulp.LpProblem("ItemsDisplacement", pulp.LpMinimize)
+    m = 1  # we will start from RF in the future
+    machine_step = 10
+    fine_tuning_stage = False  # whether we are in the binary search phase or not
+    prev_cost = inf
 
-    total_size_dynamo = np.dot(list(x), s)  # only items placed in Dynamo
+    while m <= 100:
+        print(f"Evaluating {m} machines of type {getType(mt)}")
+        # Optimization Problem
+        problem = pulp.LpProblem("ItemsDisplacement", pulp.LpMinimize)
 
-    # objective function
-    problem += (
-        dynamoDB.estimateCost_hour(
-            placement=x, t_read=t_r, t_write=t_w, db_size=total_size_dynamo
+        # objective function
+        problem += (
+            # Dynamo
+            lpSum([(1 - x[i]) * s[i] for i in range(N)]) * cost_storage
+            + lpSum([(1 - x[i]) * t_r[i] for i in range(N)]) * cost_read
+            + lpSum([(1 - x[i]) * t_w[i] for i in range(N)]) * cost_write
+            # Cassandra
+            + m * vm_costs[mt]
+        ), "Minimization of the total cost of the hybrid solution"
+
+        # constraints
+        # --------------------########## MEMORY ##########--------------------
+        problem += lpSum([x[i] * s[i] for i in range(N)]) * RF <= params.MAX_SIZE * m
+
+        # --------------------########## COMPUTATION POWER ##########--------------------
+        # *** *** *** *** *** INFEASIBILITY: DIVIDING BY DECISION VARIABLE *** *** *** *** ***
+        problem += lpSum([x[i] * iops[i] for i in range(N)]) <= vm_IOPS[mt] * m
+
+        result = problem.solve(solver)
+        # print(f"Final Displacement: {x}")
+        # cost of Dynamo if all the items were stored there
+        cost_dynamo = sum([(1 - x[i].value()) * s[i] for i in range(N)]) * cost_storage
+        +sum([(1 - x[i].value()) * t_r[i] for i in range(N)]) * cost_read
+        +sum([(1 - x[i].value()) * t_w[i] for i in range(N)]) * cost_write
+
+        print(f"Cost of Dynamo = {cost_dynamo}")
+        cost_cassandra = m * vm_costs[mt]
+        print(f"Cost of Cassandra = {cost_cassandra}")
+        items_cassandra = sum(x[i].value() for i in range(N))
+        print(
+            f"Items on Cassandra :{items_cassandra}, items on Dynamo: {N-items_cassandra}"
         )
-        + cassandra.estimateCost(noVMs=m, which_vm=mt),
-        "Minimization of the total cost of the hybrid solution",
-    )
+        total_cost = cost_dynamo + cost_cassandra
+        print(f"TOTAL COST: {total_cost}\n\n")
+        if total_cost < prev_cost and not fine_tuning_stage:  # proceed normally
+            prev_cost = total_cost
+            best_cost = total_cost
+            best_machines = m
+            prev_m = m
+            m += machine_step
+        elif (
+            not fine_tuning_stage
+        ):  # total cost is increasing --> enter fine_tuning_stage phase to find the perfect m
+            prev_cost = total_cost
+            fine_tuning_stage = True
+            m = (
+                prev_m + 1
+            )  # start by exploring linearly the last unexplored sector of possible sizes
+        elif (
+            total_cost < prev_cost
+        ):  # fine_tuning_stage phase, cost is still decreasing: increase m by 1 and keep exploring
+            prev_m = m
+            m += 1
+            if total_cost < best_cost:
+                best_cost = total_cost
+                best_machines = prev_m
+            prev_cost = total_cost
+        else:  # fine_tuning_stage phase, cost is increasing: best is previous
+            print(
+                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost per hour of {best_cost}"
+            )
+            print("-" * 80)
+            new_result = vm_types[mt], prev_m, best_cost
+            costs_per_type.append(new_result)
+            break
 
-    # constraints
-    # --------------------########## SIZE ##########--------------------
-    # 1: total size of the items will not exceed
-    # the limit of MAX SIZE TB per employed machine
+print("FINAL RESULTS:")
+print(costs_per_type)
 
-    problem += (
-        lpSum(x[i] * s[i] for i in range(N))
-        <= params.MAX_SIZE * m / cassandra.replication_factor
-    )
+best_cost = inf
+for (mtype, number, cost) in costs_per_type:
+    if cost < best_cost:
+        best_cost = cost
+        best_option = (mtype, number, cost)
 
-    # np.dot(list(x), s) * cassandra.replication_factor / m.value() <= params.MAX_SIZE
-
-    # 2: enough IOPS in the machines to sustain the total throughput of all data.
-    # --------------------########## IOPS ##########--------------------
-
-    # contains iops (t_r+t_w) of only cassandra items
-    # the iops of indexes of items stored in Dynamo
-    # are 0
-    cassandra_iops = [x * y for (x, y) in zip(x, iops)]
-
-    # sum of all iops of items stored in cassandra <= total iops of m machines
-    problem += lpSum(cassandra_iops[i] for i in range(N)) <= m * cassandra.getIops(
-        which_vm=mt
-    )
-
-    # 3: only one type of VM used in the cluster
-    # --------------------########## ONEVM ##########--------------------
-    # problem += pulp.lpSum(mt[i] for i in range(N)) == 1
-    # THIS CAN BE DROPPED
-
-    # 4: Ensuring that mt[i] is binary
-    # already done in the definition of the variable
-    # CAN BE DROPPED AS WELL
-
-    # --------------------########## ATLEAST3VMS ##########--------------------
-    problem += m >= 3
-
-    result = problem.solve(solver)
-    print(f"Cassandra cluster will have {m.value()} machines")
-    print(f"Final Displacement: {x}")
-    # cost of Dynamo if all the items were stored there
-    cost_dynamo = dynamoDB.estimateCost_hour(
-        placement=x, t_read=t_r, t_write=t_w, db_size=sum(s)
-    )
-    print(f"Cost of Dynamo = {cost_dynamo}")
-
-    cost_cassandra = cassandra.estimateCost(noVMs=m.value(), which_vm=mt)
-    print(f"Cost of Cassandra = {cost_cassandra}")
-
-    print(
-        f"The best solution is: {'Dynamo' if cost_dynamo > cost_cassandra else 'Cassandra'}\n\n\n",
-    )
-
-# %%
+print(
+    f"BEST OPTION IS {best_option[0]}. CLUSTER OF {best_option[1]} MACHINES, TOTAL COST -> {best_option[2]}"
+)
+sys.stdout.close()
+sys.stdout = sys.__stdout__
