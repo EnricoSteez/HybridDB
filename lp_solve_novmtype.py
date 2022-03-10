@@ -1,10 +1,13 @@
 from cmath import inf
+from curses import A_HORIZONTAL
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
 import params
 import numpy as np
 import sys
+import time
+from numpy.random import default_rng
 
 cost_write = 1.4842e5 / 1e6  # cost per write
 cost_read = 0.2968e5 / 1e6  # cost per read
@@ -77,6 +80,7 @@ def getType(which_type: int):
 
 sys.stdout = open("/Users/enrico/Desktop/results.txt", "w")
 N = params.N
+A = params.A
 s = list((2 ** 30 - 1) * np.random.rand(N) + 1)
 
 # Number of items N
@@ -87,18 +91,25 @@ x = pulp.LpVariable.dicts(
     indices=[i for i in range(N)],
     cat=constants.LpBinary,
 )
-# Item sizes (Bytes) -> [1B-1GB] (s)
 
-# Items' read/write throughput (tr, tw) (ops per second)
+rng = default_rng()
+
+# uniform distribution
 t_r = np.random.randint(1, 500, N)
 t_w = np.random.randint(1, 500, N)
+
+# zipfian distribution
+#%%
+# t_r = rng.zipf(A, N)
+# t_w = rng.zipf(A, N)
+#%%
 iops = [x + y for (x, y) in zip(t_r, t_w)]
 
 # for every machine type, it contains a tuple (pair) of the cost-wise best number of machines and its associated cost
 costs_per_type = []
 # print(f"Items: {s}")
 solver = pulp.getSolver("PULP_CBC_CMD")
-
+t0 = time.time()
 for mt in range(13):
     m = 1  # we will start from RF in the future
     machine_step = 10
@@ -176,6 +187,7 @@ for mt in range(13):
             costs_per_type.append(new_result)
             break
 
+t1 = time.time()
 print("FINAL RESULTS:")
 print(costs_per_type)
 
@@ -188,5 +200,7 @@ for (mtype, number, cost) in costs_per_type:
 print(
     f"BEST OPTION IS {best_option[0]}. CLUSTER OF {best_option[1]} MACHINES, TOTAL COST -> {best_option[2]}"
 )
+
+print(f"Took {t1-t0} seconds ({(t1-t0)/60}min {(t1-t0)%60}s)")
 sys.stdout.close()
 sys.stdout = sys.__stdout__
