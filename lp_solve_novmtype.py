@@ -131,16 +131,7 @@ def estimateCost(noVMs: int, which_vm: int) -> float:
     return noVMs * vm_costs[which_vm]
 
 
-def getIops(which_vm: int):
-    return vm_IOPS[which_vm]
-
-
-def getType(which_type: int):
-    return vm_types[which_type]
-
-
 sys.stdout = open("results.txt", "w")
-
 
 # Number of items N
 RF = params.REPLICATION_FACTOR
@@ -175,7 +166,7 @@ for mt in range(13):
     prev_cost = inf
 
     while m <= 300:
-        print(f"Evaluating {m} machines of type {getType(mt)}")
+        print(f"Evaluating {m} machines of type {vm_types[mt]}")
         # Optimization Problem
         problem = pulp.LpProblem("ItemsDisplacement", pulp.LpMinimize)
 
@@ -266,7 +257,6 @@ t1 = time.time()
 print("FINAL RESULTS:")
 for mtype, n, cost in costs_per_type:
     print(f"{mtype}: {n} machines --> {cost:.3f}€ per hour")
-
 
 best_cost = inf
 for (mt, number, cost) in costs_per_type:
