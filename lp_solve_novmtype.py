@@ -9,9 +9,11 @@ import sys
 import time
 from numpy.random import default_rng
 
-cost_write = 1.4842e5 / 1e6  # cost per write
-cost_read = 0.2968e5 / 1e6  # cost per read
-cost_storage = 0.29715e5  # cost per GB
+cost_write = 1.4842 / 1e6  # 1.4842 cost per million writes -> per write
+cost_read = 0.2968 / 1e6  # 0.2968 cost per million reads -> per read
+cost_storage = (
+    0.29715 / 30 / 24 / 2 ** 20
+)  # 0.29715 cost per GB per month -> per Kilo byte per hour
 
 vm_types = np.array(
     [
@@ -63,10 +65,70 @@ vm_costs = [
     4.992,
 ]
 
+N = params.N
+
+
+def generate_tp(distribution="uniform"):
+    dist_types = ["uniform", "zipfian", "constant"]
+    if not distribution in dist_types:
+        raise ValueError("Selected distribution is not valid")
+
+    if distribution == "uniform":
+        # uniform distribution
+        t_r = np.random.randint(1, 500, N)
+        t_w = np.random.randint(1, 500, N)
+
+    elif distribution == "zipfian":
+        # zipfian distribution
+        # load data from ycsb benchmark stats
+        t_r = []
+        t_w = []
+
+        with open("readStats.txt", mode="r") as file:
+            data = file.readlines()
+            i = 0
+            while i < N:
+                # print(line)
+                kv = data[i].split()
+                throughput = int(kv[1])  # kv[0]=key, kv[1]=value
+                # t_r[i] = throughput
+                t_r.append(throughput)
+                i += 1
+
+        with open("writeStats.txt", mode="r") as file:
+            data = file.readlines()
+            i = 0
+            while i < N:
+                # print(line)
+                kv = data[i].split()
+                throughput = int(kv[1])  # kv[0]=key, kv[1]=value
+                # t_r[i] = throughput
+                t_w.append(throughput)
+                i += 1
+
+    return t_r, t_w
+
+
+def generate_sizes(distribution="constant", size=1):
+    allowed_dist = ["constant", "uniform", "real"]
+    if not distribution in allowed_dist:
+        raise ValueError(f"Cannot generate sizes with distribution: {distribution}")
+    if distribution == "constant":
+        s = [size] * N
+    elif distribution == "uniform":
+        s = list((size - 1) * np.random.rand(N) + 1)  # size in Bytes
+    elif distribution == "real":
+        s = list()
+        with open("sizes.txt", "r") as file:
+            i = 0
+            while i < N:
+                s.append(int(file.readline()))
+                i += 1
+
+    return s
+
 
 def estimateCost(noVMs: int, which_vm: int) -> float:
-    # print(self.vm_costs)
-    # print(which_vm)
     return noVMs * vm_costs[which_vm]
 
 
@@ -78,10 +140,8 @@ def getType(which_type: int):
     return vm_types[which_type]
 
 
-sys.stdout = open("/Users/enrico/Desktop/results.txt", "w")
-N = params.N
-A = params.A
-s = list((2 ** 30 - 1) * np.random.rand(N) + 1)
+sys.stdout = open("results.txt", "w")
+
 
 # Number of items N
 RF = params.REPLICATION_FACTOR
@@ -94,29 +154,28 @@ x = pulp.LpVariable.dicts(
 
 rng = default_rng()
 
-# uniform distribution
-t_r = np.random.randint(1, 500, N)
-t_w = np.random.randint(1, 500, N)
-
-# zipfian distribution
-#%%
-# t_r = rng.zipf(A, N)
-# t_w = rng.zipf(A, N)
-#%%
+# throughputs in ops/s
+t_r, t_w = generate_tp(distribution="zipfian")
 iops = [x + y for (x, y) in zip(t_r, t_w)]
+
+# sizes in KB
+s = generate_sizes(distribution="real", size=1)  # default ycsb ==> 1KB
+total_size = sum(s)
 
 # for every machine type, it contains a tuple (pair) of the cost-wise best number of machines and its associated cost
 costs_per_type = []
+target_items_per_type = []
+old_placement = [0] * N
 # print(f"Items: {s}")
 solver = pulp.getSolver("PULP_CBC_CMD")
 t0 = time.time()
 for mt in range(13):
-    m = 1  # we will start from RF in the future
+    m = 0  # we will start from RF in the future
     machine_step = 10
     fine_tuning_stage = False  # whether we are in the binary search phase or not
     prev_cost = inf
 
-    while m <= 100:
+    while m <= 300:
         print(f"Evaluating {m} machines of type {getType(mt)}")
         # Optimization Problem
         problem = pulp.LpProblem("ItemsDisplacement", pulp.LpMinimize)
@@ -125,8 +184,8 @@ for mt in range(13):
         problem += (
             # Dynamo
             lpSum([(1 - x[i]) * s[i] for i in range(N)]) * cost_storage
-            + lpSum([(1 - x[i]) * t_r[i] for i in range(N)]) * cost_read
-            + lpSum([(1 - x[i]) * t_w[i] for i in range(N)]) * cost_write
+            + lpSum([(1 - x[i]) * t_r[i] for i in range(N)]) * 60 * 60 * cost_read
+            + lpSum([(1 - x[i]) * t_w[i] for i in range(N)]) * 60 * 60 * cost_write
             # Cassandra
             + m * vm_costs[mt]
         ), "Minimization of the total cost of the hybrid solution"
@@ -136,28 +195,41 @@ for mt in range(13):
         problem += lpSum([x[i] * s[i] for i in range(N)]) * RF <= params.MAX_SIZE * m
 
         # --------------------########## COMPUTATION POWER ##########--------------------
-        # *** *** *** *** *** INFEASIBILITY: DIVIDING BY DECISION VARIABLE *** *** *** *** ***
         problem += lpSum([x[i] * iops[i] for i in range(N)]) <= vm_IOPS[mt] * m
 
         result = problem.solve(solver)
-        # print(f"Final Displacement: {x}")
-        # cost of Dynamo if all the items were stored there
-        cost_dynamo = sum([(1 - x[i].value()) * s[i] for i in range(N)]) * cost_storage
-        +sum([(1 - x[i].value()) * t_r[i] for i in range(N)]) * cost_read
-        +sum([(1 - x[i].value()) * t_w[i] for i in range(N)]) * cost_write
 
-        print(f"Cost of Dynamo = {cost_dynamo}")
+        # cost of Dynamo
+        cost_dynamo = sum([(1 - x[i].value()) * s[i] for i in range(N)]) * cost_storage
+        +sum([(1 - x[i].value()) * t_r[i] for i in range(N)]) * 60 * 60 * cost_read
+        +sum([(1 - x[i].value()) * t_w[i] for i in range(N)]) * 60 * 60 * cost_write
+        print(f"Cost of Dynamo (1 hour) = {cost_dynamo}")
+
+        # cost of Cassandra
         cost_cassandra = m * vm_costs[mt]
-        print(f"Cost of Cassandra = {cost_cassandra}")
+        print(f"Cost of Cassandra (1 hour) = {cost_cassandra:.3f}")
+
         items_cassandra = sum(x[i].value() for i in range(N))
+        iops_cassandra = sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
+
         print(
-            f"Items on Cassandra :{items_cassandra}, items on Dynamo: {N-items_cassandra}"
+            f"Number of items on Cassandra :{items_cassandra}, items on Dynamo: {N-items_cassandra}"
         )
+        print(f"Percentage of items on Cassandra: {items_cassandra/N}%")
+        print(f"Percentage of iops on Cassandra: {iops_cassandra/N}%")
+        size_cassandra = sum([(x[i].value()) * s[i] for i in range(N)])
+        print(
+            f"Amount of data on Cassandra:{int(size_cassandra/2**20)}/{int(total_size/2**20)} [GB] ({size_cassandra/total_size:.2f}%)"
+        )
+
         total_cost = cost_dynamo + cost_cassandra
-        print(f"TOTAL COST: {total_cost}\n\n")
-        if total_cost < prev_cost and not fine_tuning_stage:  # proceed normally
+        print(f"TOTAL COST: {total_cost:}\n")
+        if (
+            total_cost < prev_cost and not fine_tuning_stage and items_cassandra != N
+        ):  # total cost is decreasing -> proceed normally
             prev_cost = total_cost
             best_cost = total_cost
+            best_placement = [x[i].value() for i in range(N)]
             best_machines = m
             prev_m = m
             m += machine_step
@@ -170,37 +242,53 @@ for mt in range(13):
                 prev_m + 1
             )  # start by exploring linearly the last unexplored sector of possible sizes
         elif (
-            total_cost < prev_cost
+            total_cost < best_cost
         ):  # fine_tuning_stage phase, cost is still decreasing: increase m by 1 and keep exploring
             prev_m = m
             m += 1
-            if total_cost < best_cost:
-                best_cost = total_cost
-                best_machines = prev_m
+            best_cost = total_cost
+            best_machines = m
             prev_cost = total_cost
+            best_placement = [x[i].value() for i in range(N)]
         else:  # fine_tuning_stage phase, cost is increasing: best is previous
+            plural = "s" if best_machines > 1 else ""
             print(
-                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost per hour of {best_cost}"
+                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machine{plural}, with a cost per hour of {best_cost}"
             )
             print("-" * 80)
-            new_result = vm_types[mt], prev_m, best_cost
+            new_result = mt, prev_m, best_cost
             costs_per_type.append(new_result)
+            target_items_per_type.append(
+                [abs(a - b) for a, b in zip(old_placement, best_placement)]
+            )
             break
 
 t1 = time.time()
 print("FINAL RESULTS:")
-print(costs_per_type)
+for mtype, n, cost in costs_per_type:
+    print(f"{mtype}: {n} machines --> {cost:.3f}€ per hour")
+
 
 best_cost = inf
-for (mtype, number, cost) in costs_per_type:
+for (mt, number, cost) in costs_per_type:
     if cost < best_cost:
         best_cost = cost
-        best_option = (mtype, number, cost)
+        best_option = (mt, number, cost)
 
 print(
-    f"BEST OPTION IS {best_option[0]}. CLUSTER OF {best_option[1]} MACHINES, TOTAL COST -> {best_option[2]}"
+    f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\nTOTAL COST --> {best_option[2]}€ PER HOUR \n"
 )
 
-print(f"Took {t1-t0} seconds ({(t1-t0)/60}min {(t1-t0)%60}s)")
+cost_dynamo = (
+    sum(s) * cost_storage
+    + sum(t_r) * 60 * 60 * cost_read
+    + sum(t_w) * 60 * 60 * cost_write
+)
+print(f"Cost saving: {cost_dynamo-best_option[2]}")
+
+tot_time = int(t1 - t0)
+print(f"Took {tot_time} seconds ")
+if t1 - t0 > 60:
+    print(f"({int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s)\n")
 sys.stdout.close()
 sys.stdout = sys.__stdout__
