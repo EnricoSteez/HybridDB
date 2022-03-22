@@ -1,5 +1,4 @@
 from cmath import inf
-from curses import A_HORIZONTAL
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
