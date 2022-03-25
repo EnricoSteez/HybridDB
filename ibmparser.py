@@ -9,10 +9,17 @@ with open("IBMObjectStoreTrace000Part0", "r") as file, open(
 ) as output:
     for line in file:
         line = line.split()
-        ts = int(line[0])
+        try:
+            ts = int(line[0])
+        except ValueError:
+            continue
+
         op = line[1].split(".")[1]  # REST.GET.OBJECT -> GET
         object_id = line[2]
         object_size = line[3]
+
+        if len(line) < 4:
+            continue
 
         if object_id in objects:
             value = objects[object_id]
