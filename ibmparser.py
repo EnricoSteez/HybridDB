@@ -15,10 +15,14 @@ with open("IBMObjectStoreTrace005Part3", "r") as file, open(
         object_size = line[3]
 
         if object_id in objects:
+            value = objects[object_id]
             if op == "GET" or op == "HEAD":  # READ
-                objects[object_id][1] += 1
-            else:
-                objects[object_id][2] += 1
+                new_value = (value[0], value[1] + 1, value[2])
+            else:  # WRITE
+                new_value = (value[0], value[1], value[2] + 1)
+
+            objects[object_id] = new_value
+
         else:
             if op == "GET" or op == "HEAD":  # READ
                 objects[object_id] = (object_size, 1, 0)
