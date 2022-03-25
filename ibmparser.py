@@ -1,14 +1,20 @@
 from cmath import inf
-
+from http.client import CONTINUE
+import re
 
 objects = dict()  # key: object_id -> value: (size, tp_read, tp_write)
 min_ts = inf
 max_ts = 0
+pattern = re.compile("^[0-9]+ (\w)+\.(\w)+\.(\w)+ [0-9]+( [0-9]+ [0-9]+)?$")
 with open("IBMObjectStoreTrace000Part0", "r") as file, open(
     "traces.txt", "w"
 ) as output:
     for line in file:
+        if not re.match(pattern, line):
+            continue
+
         line = line.split()
+
         if len(line) < 4:
             continue
 
@@ -40,6 +46,8 @@ with open("IBMObjectStoreTrace000Part0", "r") as file, open(
             max_ts = ts
         if ts < min_ts:
             min_ts = ts
+
+        time = max_ts - min_ts
 
     for size, tp_r, tp_w in objects.values():
         output.write(f"{size} {tp_r} {tp_w}\n")
