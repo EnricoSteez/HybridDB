@@ -67,19 +67,12 @@ vm_costs = [
 N = params.N
 
 
-def generate_tp(distribution="uniform"):
-    dist_types = ["uniform", "zipfian", "constant"]
-    if not distribution in dist_types:
-        raise ValueError("Selected distribution is not valid")
-
-    if distribution == "uniform":
-        # uniform distribution
-        t_r = np.random.randint(1, 500, N)
-        t_w = np.random.randint(1, 500, N)
-
-    elif distribution == "zipfian":
-        # zipfian distribution
-        # load data from ycsb benchmark stats
+def generate_items(distribution="ibm", size=1):
+    allowed_dist = ["ibm", "ycsb", "uniform"]
+    if not distribution in allowed_dist:
+        raise ValueError(f"Cannot generate sizes with distribution: {distribution}")
+    if distribution == "ycsb":
+        s = [size] * N
         t_r = []
         t_w = []
 
@@ -104,27 +97,26 @@ def generate_tp(distribution="uniform"):
                 # t_r[i] = throughput
                 t_w.append(throughput)
                 i += 1
-
-    return t_r, t_w
-
-
-def generate_sizes(distribution="constant", size=1):
-    allowed_dist = ["constant", "uniform", "real"]
-    if not distribution in allowed_dist:
-        raise ValueError(f"Cannot generate sizes with distribution: {distribution}")
-    if distribution == "constant":
-        s = [size] * N
     elif distribution == "uniform":
+        # uniform distribution
         s = list((size - 1) * np.random.rand(N) + 1)  # size in Bytes
-    elif distribution == "real":
-        s = list()
-        with open("sizes.txt", "r") as file:
+        t_r = np.random.randint(1, 500, N)
+        t_w = np.random.randint(1, 500, N)
+    elif distribution == "ibm":
+        s = []
+        t_r = []
+        t_w = []
+        with open("traces.txt", "r") as file:
             i = 0
             while i < N:
-                s.append(int(file.readline()))
+                line = file.readline()
+                line_split = line.split()
+                s.append(int(line_split[0]))
+                t_r.append(int(line_split[1]))
+                t_w.append(int(line_split[2]))
                 i += 1
 
-    return s
+    return s, t_r, t_w
 
 
 def estimateCost(noVMs: int, which_vm: int) -> float:
@@ -144,12 +136,11 @@ x = pulp.LpVariable.dicts(
 
 rng = default_rng()
 
-# throughputs in ops/s
-t_r, t_w = generate_tp(distribution="zipfian")
+
+# sizes in KB, throughputs in ops/s
+s, t_r, t_w = generate_items(distribution="ibm", size=100)
 iops = [x + y for (x, y) in zip(t_r, t_w)]
 
-# sizes in KB
-s = generate_sizes(distribution="real", size=1)  # default ycsb ==> 1KB
 total_size = sum(s)
 
 # for every machine type, it contains a tuple (pair) of the cost-wise best number of machines and its associated cost
