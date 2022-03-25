@@ -4,7 +4,7 @@ from cmath import inf
 objects = dict()  # key: object_id -> value: (size, tp_read, tp_write)
 min_ts = inf
 max_ts = 0
-with open("IBMObjectStoreTrace005Part3", "r") as file, open(
+with open("IBMObjectStoreTrace000Part0", "r") as file, open(
     "traces.txt", "w"
 ) as output:
     for line in file:
