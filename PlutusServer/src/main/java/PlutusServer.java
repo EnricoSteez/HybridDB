@@ -11,6 +11,7 @@ public class PlutusServer {
 
     private static final Logger logger = Logger.getLogger(PlutusServer.class.getName());
     private Server server;
+    // k->IP:port, v->stub
     private static Map<String, CoordinationMethodsGrpc.CoordinationMethodsStub> clients;
 
     public PlutusServer() {
@@ -62,6 +63,9 @@ public class PlutusServer {
         final PlutusServer server = new PlutusServer();
         server.start();
         server.blockUntilShutdown();
+
+        //TODO figure out how the thread can access the list of clients
+        new Thread(new Optimizer(clients)).start();
     }
 
     static class Initialization extends InitializationGrpc.InitializationImplBase {

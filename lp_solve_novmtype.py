@@ -1,4 +1,5 @@
 from cmath import inf
+from fileinput import filename
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
@@ -67,15 +68,19 @@ vm_costs = [
 N = params.N
 
 
-def generate_items(distribution="ibm", size=1):
-    allowed_dist = ["ibm", "ycsb", "uniform"]
-    if not distribution in allowed_dist:
-        raise ValueError(f"Cannot generate sizes with distribution: {distribution}")
-    if distribution == "ycsb":
-        s = [size] * N
-        t_r = []
-        t_w = []
-
+def gather_stats_ycsb(which) -> list:
+    throughputs = []
+    if which == "r":
+        filename = "readStats.txt"
+        with open(filename, mode="r") as file:
+            i = 0
+            while i < N:
+                data = file.readline().split()
+                tp = int(kv[1])  # kv[0]=key, kv[1]=value
+                # t_r[i] = throughput
+                throughputs.append(tp)
+                i += 1
+    elif which == "w":
         with open("readStats.txt", mode="r") as file:
             data = file.readlines()
             i = 0
@@ -84,25 +89,28 @@ def generate_items(distribution="ibm", size=1):
                 kv = data[i].split()
                 throughput = int(kv[1])  # kv[0]=key, kv[1]=value
                 # t_r[i] = throughput
-                t_r.append(throughput)
+                res.append(throughput)
                 i += 1
+        return res
 
-        with open("writeStats.txt", mode="r") as file:
-            data = file.readlines()
-            i = 0
-            while i < N:
-                # print(line)
-                kv = data[i].split()
-                throughput = int(kv[1])  # kv[0]=key, kv[1]=value
-                # t_r[i] = throughput
-                t_w.append(throughput)
-                i += 1
+
+def generate_items(distribution="custom", size=1):
+    allowed_dist = ["ycsb", "uniform", "custom"]
+    if not distribution in allowed_dist:
+        raise ValueError(f"Cannot generate sizes with distribution: {distribution}")
+    if distribution == "ycsb":
+        s = [size] * N
+        t_r = gather_stats_ycsb("r")
+        t_w = gather_stats_ycsb("w")
+
     elif distribution == "uniform":
         # uniform distribution
         s = list((size - 1) * np.random.rand(N) + 1)  # size in Bytes
         t_r = np.random.randint(1, 500, N)
         t_w = np.random.randint(1, 500, N)
-    elif distribution == "ibm":
+
+    # sizes are IBM, throughputs are YCSB
+    elif distribution == "custom":
         s = []
         t_r = []
         t_w = []
@@ -112,8 +120,27 @@ def generate_items(distribution="ibm", size=1):
                 line = file.readline()
                 line_split = line.split()
                 s.append(int(line_split[0]))
-                t_r.append(int(line_split[1]))
-                t_w.append(int(line_split[2]))
+                i += 1
+        with open("readStats.txt", mode="r") as file:
+            i = 0
+            while i < N:
+                data = file.readline()
+                # print(data)
+                data = data.split()
+                throughput = int(data[1])  # kv[0]=key, kv[1]=value
+                # t_r[i] = throughput
+                t_r.append(throughput)
+                i += 1
+
+        with open("writeStats.txt", mode="r") as file:
+            i = 0
+            while i < N:
+                data = file.readline()
+                # print(data)
+                data = data.split()
+                throughput = int(data[1])  # kv[0]=key, kv[1]=value
+                # t_r[i] = throughput
+                t_w.append(throughput)
                 i += 1
 
     return s, t_r, t_w

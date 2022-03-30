@@ -1,7 +1,10 @@
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
 import io.grpc.stub.StreamObserver;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -9,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class Client {
@@ -16,12 +20,55 @@ public class Client {
     private final InitializationGrpc.InitializationBlockingStub initializationBlockingStub;
     private final int localPort;
     private static final long initTime = System.currentTimeMillis();
+    private Server server;
+    private static final Logger logger = Logger.getLogger(Client.class.getName());
+
+
 
     public Client (ManagedChannel channel, int localPort){
         initializationBlockingStub = InitializationGrpc.newBlockingStub(channel);
         items = new HashMap<>();
         this.localPort = localPort;
     }
+
+    private void start() throws IOException {
+        /* The port on which the server should run */
+        int port = 50051;
+        server = ServerBuilder.forPort(port)
+                .addService(new Coordination())
+                .build()
+                .start();
+        logger.info("Server started, listening on " + port);
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                // Use stderr here since the logger may have been reset by its JVM shutdown hook.
+                System.err.println("*** shutting down gRPC server since JVM is shutting down");
+                try {
+                    Client.this.stop();
+                } catch (InterruptedException e) {
+                    e.printStackTrace(System.err);
+                }
+                System.err.println("*** server shut down");
+            }
+        });
+    }
+
+    private void stop() throws InterruptedException {
+        if (server != null) {
+            server.shutdown().awaitTermination(30, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * Await termination on the main thread since the grpc library uses daemon threads.
+     */
+    private void blockUntilShutdown() throws InterruptedException {
+        if (server != null) {
+            server.awaitTermination();
+        }
+    }
+
 
     private boolean registerClient() {
         InitializationServices.RegisterRequest request =
@@ -39,7 +86,7 @@ public class Client {
         return reply.getOk();
     }
 
-    public static void main (String[] args) {
+    public static void main (String[] args)  throws IOException, InterruptedException{
         int localPort = 50099;
         String serverIP = "localhost";
         int serverPort = 50051;
@@ -58,21 +105,21 @@ public class Client {
                 throw new IllegalArgumentException(e);
             }
         }
-
         String target = serverIP + ":" + serverPort;
-
         ManagedChannel channel = ManagedChannelBuilder
                 .forTarget(target)
                 .usePlaintext()
                 .build();
         try {
             Client client=new Client(channel, localPort);
-
             boolean ok = client.registerClient();
             if(!ok) throw new RuntimeException("Cannot register client");
+            new Thread(new ClientBehaviour()).start();
+            client.start();
+            client.blockUntilShutdown();
 
-            new Thread(new ClientBehaviour()).run();
-            //TODO implement client behaviour here
+            //TODO check how the thread can access ITEMS
+            //TODO check if it can be run on a separate window
 
         } catch(RuntimeException e) {
             e.printStackTrace();

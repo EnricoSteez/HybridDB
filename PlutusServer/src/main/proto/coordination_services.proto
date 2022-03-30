@@ -1,26 +1,21 @@
 syntax = "proto3";
 
 service CoordinationMethods {
-  rpc FinalizeRegistration (FinalizeRequest) returns (FinalizeReply) {}
   rpc GatherThroughputs (GatherThroughputsRequest) returns (GatherThroughputsReply) {}
   rpc Freeze (FreezeRequest) returns (FreezeReply) {}
   rpc Unfreeze (UnfreezeRequest) returns (UnfreezeReply) {}
-
-}
-
-message FinalizeRequest {
-
-}
-
-message FinalizeReply {
-
 }
 
 message GatherThroughputsRequest {
-  repeated string keys = 1;
 }
+
 message GatherThroughputsReply {
-  repeated int32 throughputs = 2;
+  repeated Throughput throughputs = 2;
+}
+
+message Throughput {
+  string id = 1;
+  int64 throughput = 2;
 }
 
 message FreezeRequest {
@@ -28,7 +23,7 @@ message FreezeRequest {
 }
 
 message FreezeReply {
-  bool done = 1;
+  repeated string notFound = 1;
 }
 
 message UnfreezeRequest {
@@ -37,7 +32,7 @@ message UnfreezeRequest {
 
 message ItemPlacement {
   string id = 1;
-  bool placement = 2;
+  int32 placement = 2;
 }
 
 message UnfreezeReply {

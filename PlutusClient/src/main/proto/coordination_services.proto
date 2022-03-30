@@ -7,8 +7,8 @@ service CoordinationMethods {
 }
 
 message GatherThroughputsRequest {
-  repeated string keys = 1;
 }
+
 message GatherThroughputsReply {
   repeated Throughput throughputs = 2;
 }
