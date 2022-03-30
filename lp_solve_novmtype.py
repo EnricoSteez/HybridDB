@@ -72,29 +72,25 @@ def gather_stats_ycsb(which) -> list:
     throughputs = []
     if which == "r":
         filename = "readStats.txt"
+    elif which == "w":
+        filename = "writeStats.txt"
+
         with open(filename, mode="r") as file:
             i = 0
             while i < N:
                 data = file.readline().split()
-                tp = int(kv[1])  # kv[0]=key, kv[1]=value
+                tp = int(data[1])  # kv[0]=key, kv[1]=value
                 # t_r[i] = throughput
                 throughputs.append(tp)
                 i += 1
-    elif which == "w":
-        with open("readStats.txt", mode="r") as file:
-            data = file.readlines()
-            i = 0
-            while i < N:
-                # print(line)
-                kv = data[i].split()
-                throughput = int(kv[1])  # kv[0]=key, kv[1]=value
-                # t_r[i] = throughput
-                res.append(throughput)
-                i += 1
-        return res
+
+    return throughputs
 
 
 def generate_items(distribution="custom", size=1):
+    # ycsb: constant 100KB sizes, zipfian throughputs
+    # uniform: everything uniformely distribuetd
+    # custom: sizes from ibm traces, throughputs from YCSB
     allowed_dist = ["ycsb", "uniform", "custom"]
     if not distribution in allowed_dist:
         raise ValueError(f"Cannot generate sizes with distribution: {distribution}")
@@ -112,8 +108,6 @@ def generate_items(distribution="custom", size=1):
     # sizes are IBM, throughputs are YCSB
     elif distribution == "custom":
         s = []
-        t_r = []
-        t_w = []
         with open("traces.txt", "r") as file:
             i = 0
             while i < N:
@@ -121,27 +115,8 @@ def generate_items(distribution="custom", size=1):
                 line_split = line.split()
                 s.append(int(line_split[0]))
                 i += 1
-        with open("readStats.txt", mode="r") as file:
-            i = 0
-            while i < N:
-                data = file.readline()
-                # print(data)
-                data = data.split()
-                throughput = int(data[1])  # kv[0]=key, kv[1]=value
-                # t_r[i] = throughput
-                t_r.append(throughput)
-                i += 1
-
-        with open("writeStats.txt", mode="r") as file:
-            i = 0
-            while i < N:
-                data = file.readline()
-                # print(data)
-                data = data.split()
-                throughput = int(data[1])  # kv[0]=key, kv[1]=value
-                # t_r[i] = throughput
-                t_w.append(throughput)
-                i += 1
+        t_r = gather_stats_ycsb("r")
+        t_w = gather_stats_ycsb("w")
 
     return s, t_r, t_w
 
