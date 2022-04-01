@@ -8,6 +8,7 @@ import numpy as np
 import sys
 import time
 from numpy.random import default_rng
+from notify_run import Notify
 
 cost_write = 1.4842 / 1e6  # 1.4842 cost per million writes -> per write
 cost_read = 0.2968 / 1e6  # 0.2968 cost per million reads -> per read
@@ -274,3 +275,8 @@ if t1 - t0 > 60:
     print(f"({int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s)\n")
 sys.stdout.close()
 sys.stdout = sys.__stdout__
+notify = Notify()
+notify.register(endpoint="https://notify.run/BzaTaraFb0zXHOBgryqp")
+notify.send("FINISHED!")
+
+
