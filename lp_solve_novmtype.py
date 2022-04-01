@@ -75,7 +75,7 @@ def gather_stats_ycsb(which: str) -> list:
     elif which == "w":
         filename = "writeStats.txt"
 
-    print(f"Opening file {filename} for required throughputs -->{which}")
+    # print(f"Opening file {filename} for required throughputs -->{which}")
 
     with open(filename, mode="r") as file:
         i = 0
@@ -86,7 +86,7 @@ def gather_stats_ycsb(which: str) -> list:
             throughputs.append(tp)
             i += 1
 
-    print(f"Returning throughputs mode->{which}")
+    # print(f"Returning throughputs mode->{which}")
     return throughputs
 
 
