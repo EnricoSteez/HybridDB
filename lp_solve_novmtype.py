@@ -68,26 +68,29 @@ vm_costs = [
 N = params.N
 
 
-def gather_stats_ycsb(which) -> list:
+def gather_stats_ycsb(which: str) -> list:
     throughputs = []
     if which == "r":
         filename = "readStats.txt"
     elif which == "w":
         filename = "writeStats.txt"
 
-        with open(filename, mode="r") as file:
-            i = 0
-            while i < N:
-                data = file.readline().split()
-                tp = int(data[1])  # kv[0]=key, kv[1]=value
-                # t_r[i] = throughput
-                throughputs.append(tp)
-                i += 1
+    print(f"Opening file {filename} for required throughputs -->{which}")
 
+    with open(filename, mode="r") as file:
+        i = 0
+        while i < N:
+            data = file.readline().split()
+            tp = int(data[1])  # kv[0]=key, kv[1]=value
+            # t_r[i] = throughput
+            throughputs.append(tp)
+            i += 1
+
+    print(f"Returning throughputs mode->{which}")
     return throughputs
 
 
-def generate_items(distribution="custom", size=1):
+def generate_items(distribution="custom", size=100):
     # ycsb: constant 100KB sizes, zipfian throughputs
     # uniform: everything uniformely distribuetd
     # custom: sizes from ibm traces, throughputs from YCSB
@@ -108,21 +111,16 @@ def generate_items(distribution="custom", size=1):
     # sizes are IBM, throughputs are YCSB
     elif distribution == "custom":
         s = []
-        with open("traces.txt", "r") as file:
+        with open("sizes.txt", "r") as file:
             i = 0
             while i < N:
-                line = file.readline()
-                line_split = line.split()
-                s.append(int(line_split[0]))
+                line = file.readline().split()
+                s.append(int(line[0]))
                 i += 1
         t_r = gather_stats_ycsb("r")
         t_w = gather_stats_ycsb("w")
 
     return s, t_r, t_w
-
-
-def estimateCost(noVMs: int, which_vm: int) -> float:
-    return noVMs * vm_costs[which_vm]
 
 
 sys.stdout = open("results.txt", "w")
@@ -140,7 +138,9 @@ rng = default_rng()
 
 
 # sizes in KB, throughputs in ops/s
-s, t_r, t_w = generate_items(distribution="ibm", size=100)
+s, t_r, t_w = generate_items(distribution="custom", size=100)
+print("Retrieved real world data:")
+print(f"S->{len(s)}, t_r->{len(t_r)}, t_w->{len(t_w)}")
 iops = [x + y for (x, y) in zip(t_r, t_w)]
 
 total_size = sum(s)
