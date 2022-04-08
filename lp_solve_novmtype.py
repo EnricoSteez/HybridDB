@@ -1,6 +1,4 @@
 from cmath import inf
-from fileinput import filename
-from matplotlib.pyplot import inferno
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
@@ -9,48 +7,44 @@ import numpy as np
 import sys
 import time
 from numpy.random import default_rng
-from notify_run import Notify
+import re
 
-cost_write = 1.4842 / 1e6  # 1.4842 cost per million writes -> per write: 1.4842 / 1e6
-cost_read = 0.2968 / 1e6  # 0.2968 cost per million reads -> per read: 0.2968 / 1e6
+cost_write = 1.4842 / 1e6  # cost per million write requests 1.4842 / 1e6
+cost_read = 0.2968 / 1e6  # cost per million read requests 0.2968 / 1e6
 cost_storage = (
     0.29715 / 30 / 24 / 2 ** 20
 )  # 0.29715 cost per GB per month -> per Kilo byte per hour
 
-vm_types = np.array(
-    [
-        "m4.large",
-        "m4.xlarge",
-        "m4.2xlarge",
-        "m4.4xlarge",
-        "m4.10xlarge",
-        "m4.16xlarge",
-        "i3.large",
-        "i3.xlarge",
-        "i3.2xlarge",
-        "i3.4xlarge",
-        "i3.8xlarge",
-        "i3.16xlarge",
-        "i3.metal",
-    ]
-)
-vm_IOPS = np.array(
-    [
-        3600,
-        6000,
-        8000,
-        16000,
-        32000,
-        65000,
-        3000,
-        6000,
-        12000,
-        16000,
-        32500,
-        65000,
-        80000,
-    ]
-)
+vm_types = [
+    "m4.large",
+    "m4.xlarge",
+    "m4.2xlarge",
+    "m4.4xlarge",
+    "m4.10xlarge",
+    "m4.16xlarge",
+    "i3.large",
+    "i3.xlarge",
+    "i3.2xlarge",
+    "i3.4xlarge",
+    "i3.8xlarge",
+    "i3.16xlarge",
+    "i3.metal",
+]
+vm_IOPS = [
+    3600,
+    6000,
+    8000,
+    16000,
+    32000,
+    65000,
+    3000,
+    6000,
+    12000,
+    16000,
+    32500,
+    65000,
+    80000,
+]
 vm_costs = [
     0.1,
     0.2,
@@ -82,11 +76,19 @@ def gather_stats_ycsb(which: str) -> list:
     with open(filename, mode="r") as file:
         i = 0
         while i < N:
-            data = file.readline().split()
-            tp = int(data[1])  # kv[0]=key, kv[1]=value
-            # t_r[i] = throughput
+            line = file.readline()
+            if not re.match("user[0-9]+ [0-9]+", line):
+                print(f"Found errors in throughputs in line {line}")
+                i += 1
+                continue
+
+            tp = int(line.split()[1])  # kv[0]=key, kv[1]=value
+
             throughputs.append(tp)
             i += 1
+
+        while len(throughputs) < N:
+            throughputs.append(0)
 
     # print(f"Returning throughputs mode->{which}")
     return throughputs
@@ -218,7 +220,7 @@ for mt in range(13):
         cost_dynamo = sum([(1 - x[i].value()) * s[i] for i in range(N)]) * cost_storage
         +sum(
             [
-                (1 - x[i].value()) * s[i] / 8 * t_r[i] * 60 * 60 * cost_read
+                (1 - x[i].value()) * (s[i] / 8) * t_r[i] * 60 * 60 * cost_read
                 for i in range(N)
             ]
         )
