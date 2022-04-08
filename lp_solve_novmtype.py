@@ -122,7 +122,7 @@ def gather_sizes_ibm():
     return s
 
 
-def generate_items(distribution="custom", size=100):
+def generate_items(distribution="custom", max_size=400):
     # ycsb: constant 100KB sizes, zipfian throughputs
     # uniform: everything uniformely distribuetd
     # custom: sizes from ibm traces, throughputs from YCSB
@@ -130,15 +130,15 @@ def generate_items(distribution="custom", size=100):
     if not distribution in allowed_dist:
         raise ValueError(f"Cannot generate sizes with distribution: {distribution}")
     if distribution == "ycsb":
-        s = [size] * N
+        s = [100] * N
         t_r = gather_stats_ycsb("r")
         t_w = gather_stats_ycsb("w")
 
     elif distribution == "uniform":
         # uniform distribution
-        s = list((size - 1) * np.random.rand(N) + 1)  # size in Bytes
-        t_r = np.random.randint(1, 400, N)
-        t_w = np.random.randint(1, 400, N)
+        s = list((max_size - 1) * np.random.rand(N) + 1)  # size in Bytes
+        t_r = np.random.randint(1, 500, N)
+        t_w = np.random.randint(1, 500, N)
 
     # sizes are IBM, throughputs are YCSB
     elif distribution == "custom":
@@ -146,6 +146,15 @@ def generate_items(distribution="custom", size=100):
         t_r = gather_stats_ycsb("r")
         t_w = gather_stats_ycsb("w")
 
+    print(f"Size of s: {len(s)}")
+    print(f"Size of t_r: {len(t_r)}")
+    print(f"Size of t_w: {len(t_w)}")
+    print(s)
+    print("SEPARATOR")
+    print(t_r)
+    print("SEPARATOR")
+    print(t_w)
+    print("SEPARATOR")
     return s, t_r, t_w
 
 
@@ -164,7 +173,7 @@ rng = default_rng()
 
 
 # sizes in KB, throughputs in ops/s
-s, t_r, t_w = generate_items(distribution="custom", size=100)
+s, t_r, t_w = generate_items(distribution="uniform", max_size=400)
 # print("Retrieved real world data:")
 # print(f"S->{len(s)}, t_r->{len(t_r)}, t_w->{len(t_w)}")
 # print(f"Throughputs read min {min(t_r)}, max {max(t_r)}")

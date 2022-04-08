@@ -64,7 +64,7 @@ public class PlutusServer {
         server.start();
         server.blockUntilShutdown();
 
-        //TODO figure out how the thread can access the list of clients
+        //TODO LAUNCH THIS PERIODICALLY
         new Thread(new Optimizer(clients)).start();
     }
 
