@@ -1,4 +1,4 @@
 N = 10000
-MAX_SIZE = (2 ** 40 - 1) * 4  # 4TB
+MAX_SIZE = (2 ** 30 - 1) * 4  # 4TB with KB as baseline
 REPLICATION_FACTOR = 3
 A = 2

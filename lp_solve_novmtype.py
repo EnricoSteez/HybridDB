@@ -1,5 +1,6 @@
 from cmath import inf
 from fileinput import filename
+from matplotlib.pyplot import inferno
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
@@ -10,8 +11,8 @@ import time
 from numpy.random import default_rng
 from notify_run import Notify
 
-cost_write = 1.4842 / 1e6  # 1.4842 cost per million writes -> per write
-cost_read = 0.2968 / 1e6  # 0.2968 cost per million reads -> per read
+cost_write = 1.4842 / 1e6  # 1.4842 cost per million writes -> per write: 1.4842 / 1e6
+cost_read = 0.2968 / 1e6  # 0.2968 cost per million reads -> per read: 0.2968 / 1e6
 cost_storage = (
     0.29715 / 30 / 24 / 2 ** 20
 )  # 0.29715 cost per GB per month -> per Kilo byte per hour
@@ -91,6 +92,34 @@ def gather_stats_ycsb(which: str) -> list:
     return throughputs
 
 
+def gather_sizes_ibm():
+    # scan the file first to get the range of values
+    min_size = inf
+    max_size = 0
+
+    with open("sizes.txt", "r") as file:
+        i = 0
+        while i < N:
+            size = int(file.readline().split()[0])
+            if size < min_size:
+                min_size = size
+            if size > max_size:
+                max_size = size
+            i += 1
+
+        values_range = max_size - min_size
+        # rewind and normalize each value in the range [0,400]
+        file.seek(0)
+        s = []
+        i = 0
+        while i < N:
+            number = int(file.readline().split()[0])
+            size = number / values_range * 400
+            s.append(size)
+            i += 1
+    return s
+
+
 def generate_items(distribution="custom", size=100):
     # ycsb: constant 100KB sizes, zipfian throughputs
     # uniform: everything uniformely distribuetd
@@ -106,18 +135,12 @@ def generate_items(distribution="custom", size=100):
     elif distribution == "uniform":
         # uniform distribution
         s = list((size - 1) * np.random.rand(N) + 1)  # size in Bytes
-        t_r = np.random.randint(1, 500, N)
-        t_w = np.random.randint(1, 500, N)
+        t_r = np.random.randint(1, 400, N)
+        t_w = np.random.randint(1, 400, N)
 
     # sizes are IBM, throughputs are YCSB
     elif distribution == "custom":
-        s = []
-        with open("sizes.txt", "r") as file:
-            i = 0
-            while i < N:
-                line = file.readline().split()
-                s.append(int(line[0]))
-                i += 1
+        s = gather_sizes_ibm()
         t_r = gather_stats_ycsb("r")
         t_w = gather_stats_ycsb("w")
 
@@ -140,9 +163,11 @@ rng = default_rng()
 
 # sizes in KB, throughputs in ops/s
 s, t_r, t_w = generate_items(distribution="custom", size=100)
-print("Retrieved real world data:")
-print(f"S->{len(s)}, t_r->{len(t_r)}, t_w->{len(t_w)}")
-iops = [x + y for (x, y) in zip(t_r, t_w)]
+# print("Retrieved real world data:")
+# print(f"S->{len(s)}, t_r->{len(t_r)}, t_w->{len(t_w)}")
+# print(f"Throughputs read min {min(t_r)}, max {max(t_r)}")
+# print(f"Throughputs write min min {min(t_w)}, max {max(t_w)}")
+
 
 total_size = sum(s)
 
@@ -168,8 +193,12 @@ for mt in range(13):
         problem += (
             # Dynamo
             lpSum([(1 - x[i]) * s[i] for i in range(N)]) * cost_storage
-            + lpSum([(1 - x[i]) * t_r[i] for i in range(N)]) * 60 * 60 * cost_read
-            + lpSum([(1 - x[i]) * t_w[i] for i in range(N)]) * 60 * 60 * cost_write
+            + lpSum(
+                [(1 - x[i]) * s[i] / 8 * t_r[i] * 60 * 60 * cost_read for i in range(N)]
+            )
+            + lpSum(
+                [(1 - x[i]) * s[i] * t_w[i] * 60 * 60 * cost_write for i in range(N)]
+            )
             # Cassandra
             + m * vm_costs[mt]
         ), "Minimization of the total cost of the hybrid solution"
@@ -179,14 +208,26 @@ for mt in range(13):
         problem += lpSum([x[i] * s[i] for i in range(N)]) * RF <= params.MAX_SIZE * m
 
         # --------------------########## COMPUTATION POWER ##########--------------------
-        problem += lpSum([x[i] * iops[i] for i in range(N)]) <= vm_IOPS[mt] * m
+        problem += (
+            lpSum([x[i] * (t_r[i] + t_w[i]) for i in range(N)]) <= vm_IOPS[mt] * m
+        )
 
         result = problem.solve(solver)
 
         # cost of Dynamo
         cost_dynamo = sum([(1 - x[i].value()) * s[i] for i in range(N)]) * cost_storage
-        +sum([(1 - x[i].value()) * t_r[i] for i in range(N)]) * 60 * 60 * cost_read
-        +sum([(1 - x[i].value()) * t_w[i] for i in range(N)]) * 60 * 60 * cost_write
+        +sum(
+            [
+                (1 - x[i].value()) * s[i] / 8 * t_r[i] * 60 * 60 * cost_read
+                for i in range(N)
+            ]
+        )
+        +sum(
+            [
+                (1 - x[i].value()) * s[i] * t_w[i] * 60 * 60 * cost_write
+                for i in range(N)
+            ]
+        )
         print(f"Cost of Dynamo (1 hour) = {cost_dynamo}")
 
         # cost of Cassandra
@@ -275,8 +316,6 @@ if t1 - t0 > 60:
     print(f"({int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s)\n")
 sys.stdout.close()
 sys.stdout = sys.__stdout__
-notify = Notify()
-notify.register(endpoint="https://notify.run/BzaTaraFb0zXHOBgryqp")
-notify.send("FINISHED!")
-
-
+# notify = Notify()
+# notify.register(endpoint="https://notify.run/BzaTaraFb0zXHOBgryqp")
+# notify.send("FINISHED!")
