@@ -7,6 +7,13 @@
     <groupId>org.example</groupId>
     <artifactId>PlutusServer</artifactId>
     <version>1.0-SNAPSHOT</version>
+    <repositories>
+        <repository>
+            <id>dynamodb-local-frankfurt</id>
+            <name>DynamoDB Local Release Repository</name>
+            <url>https://s3.eu-central-1.amazonaws.com/dynamodb-local-frankfurt/release</url>
+        </repository>
+    </repositories>
 
     <dependencies>
         <dependency>
@@ -63,8 +70,14 @@
             <artifactId>h2</artifactId>
             <version>2.1.210</version>
         </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>DynamoDBLocal</artifactId>
+            <version>[1.12,2.0)</version>
+        </dependency>
 
     </dependencies>
+    
 
     <build>
         <extensions>

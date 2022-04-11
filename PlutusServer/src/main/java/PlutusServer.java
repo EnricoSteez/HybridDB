@@ -2,8 +2,10 @@ import io.grpc.*;
 import io.grpc.stub.StreamObserver;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -13,9 +15,25 @@ public class PlutusServer {
     private Server server;
     // k->IP:port, v->stub
     private static Map<String, CoordinationMethodsGrpc.CoordinationMethodsStub> clients;
+    private static Map<String, Integer> currentPlacement;
+    private static DatabaseController databaseController;
+    private static final int N = 1000;
+    //TODO GRAB N ON THE FLY: COUNT ITEMS FROM BOTH DATABASES AND SUM
+
 
     public PlutusServer() {
         clients = new HashMap<>();
+        //Initialize placement
+        currentPlacement = new HashMap<>();
+        Random r = new Random();
+        byte[] b = new byte[10];
+        //TODO REMOVE THIS MOCK INITIALIZATION AND RETRIEVE STUFF ON THE FLY FROM THE BACKENDS
+        for(int i=0;i<N;i++){
+            r.nextBytes(b);
+            //all items on Dynamo initially
+            currentPlacement.put(new String(b, StandardCharsets.UTF_8),0);
+        }
+        databaseController = new DatabaseController();
     }
 
     private void start() throws IOException {
@@ -64,8 +82,8 @@ public class PlutusServer {
         server.start();
         server.blockUntilShutdown();
 
-        //TODO LAUNCH THIS PERIODICALLY
-        new Thread(new Optimizer(clients)).start();
+        //TODO LAUNCH THIS PERIODICALLY, INSTEAD of only once
+        new Thread(new Optimizer(clients,currentPlacement,databaseController)).start();
     }
 
     static class Initialization extends InitializationGrpc.InitializationImplBase {

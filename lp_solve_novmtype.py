@@ -8,6 +8,8 @@ import sys
 import time
 from numpy.random import default_rng
 import re
+import json
+import telegram
 
 cost_write = 1.4842 / 1e6  # cost per million write requests 1.4842 / 1e6
 cost_read = 0.2968 / 1e6  # cost per million read requests 0.2968 / 1e6
@@ -62,6 +64,15 @@ vm_costs = [
 ]
 
 N = params.N
+
+
+def notify_ending(message):
+    with open("./keys/keys.json", "r") as keys_file:
+        k = json.load(keys_file)
+        token = k["telegram_token"]
+        chat_id = k["telegram_chat_id"]
+    bot = telegram.Bot(token=token)
+    bot.sendMessage(chat_id=chat_id, text=message)
 
 
 def gather_stats_ycsb(which: str) -> list:
@@ -327,6 +338,8 @@ if t1 - t0 > 60:
     print(f"({int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s)\n")
 sys.stdout.close()
 sys.stdout = sys.__stdout__
+
+
 # notify = Notify()
 # notify.register(endpoint="https://notify.run/BzaTaraFb0zXHOBgryqp")
 # notify.send("FINISHED!")

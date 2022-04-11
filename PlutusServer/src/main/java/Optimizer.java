@@ -5,13 +5,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 public record Optimizer(
-        Map<String, CoordinationMethodsGrpc.CoordinationMethodsStub> clients) implements Runnable {
+        Map<String, CoordinationMethodsGrpc.CoordinationMethodsStub> clients,
+        Map<String, Integer> currentPlacement,
+        DatabaseController controller) implements Runnable {
 
     private static Map<String, Long> throughputs;
 
-    public Optimizer (Map<String, CoordinationMethodsGrpc.CoordinationMethodsStub> clients) {
+    public Optimizer (Map<String, CoordinationMethodsGrpc.CoordinationMethodsStub> clients, Map<String, Integer> currentPlacement, DatabaseController controller) {
         this.clients = clients;
         throughputs = new ConcurrentHashMap<>();
+        this.currentPlacement = currentPlacement;
+        this.controller = controller;
     }
 
     @Override
@@ -49,7 +53,8 @@ public record Optimizer(
             //here all throughputs should be gathered
 
             //RUN OPTIMIZER
-            List<String> itemsToMove = optimizePlacement(throughputs);
+            Map<String, Integer> newPlacement = optimizePlacement(throughputs);
+            Map<String,Integer> itemsToMove = comparePlacements(currentPlacement,newPlacement);
 
             StreamObserver<CoordinationServices.FreezeReply> freezeReplyStreamObserver = new StreamObserver<CoordinationServices.FreezeReply>() {
                 @Override
@@ -71,7 +76,7 @@ public record Optimizer(
                 }
             };
             CoordinationServices.FreezeRequest freezeRequest = CoordinationServices.FreezeRequest.newBuilder()
-                    .addAllKeys(throughputs.keySet())
+                    .addAllKeys(itemsToMove.keySet())
                     .build();
 
             //TELL CLIENTS TO FREEZE CRITICAL ITEMS TO BE MOVED
@@ -79,7 +84,10 @@ public record Optimizer(
 
             //AT THIS POINT THE CLIENTS SHOULD QUEUE ALL REQUESTS TARGETING KEYS IN THE FREEZE SET
 
-            Map<String,Integer> newPlacement = moveData(throughputs.keySet());
+            Set<String> fails = moveData(itemsToMove);
+            if(!fails.isEmpty()) {
+
+            }
 
             CoordinationServices.UnfreezeRequest unfreezeRequest = CoordinationServices.UnfreezeRequest.newBuilder()
                     .addAllNewPlacement(newPlacement
@@ -111,27 +119,43 @@ public record Optimizer(
 
                 @Override
                 public void onCompleted () {
-                    System.out.println("All client unfreezed the items. Optimization complete");
+                    System.out.println("All client unfroze the items. Optimization complete");
                 }
             };
 
             stub.unfreeze(unfreezeRequest,unfreezeReplyStreamObserver);
 
-            //END OF OPTMIZATION ROUTINE
+            //END OF OPTIMIZATION ROUTINE
         });
     }
 
-    private Map<String, Integer> moveData (Set<String> keySet) {
-        Map<String,Integer> newPlacement = new HashMap<>();
-        //TODO IMPLEMENT DATA TRANSFER
-        return newPlacement;
+    private Map<String, Integer> comparePlacements (Map<String, Integer> currentPlacement, Map<String, Integer> newPlacement) {
+        Map<String, Integer> itemsThatChanged = new HashMap<>();
+        for(Map.Entry<String,Integer> item : currentPlacement.entrySet()){
+            if(!Objects.equals(currentPlacement.get(item.getKey()), newPlacement.get(item.getKey())))
+                itemsThatChanged.put(item.getKey(), item.getValue());
+        }
+        return itemsThatChanged;
     }
 
-    private List<String> optimizePlacement (Map<String, Long> throughputs) {
-        List<String> itemsToMove = new ArrayList<>();
+    private Set<String> moveData (Map<String, Integer> items) {
+        //TODO implement data transfer with Controller class
+        return null;
+    }
 
-        //TODO CALL PYTHON OPTIMIZER
+    private void moveItem (String key, Integer value) throws RuntimeException{
+        //TODO CREATE CONTROLLER AND INVOKE DATA TRANSFER ON SINGLE ITEMS
+    }
 
-        return itemsToMove;
+    private Map<String, Integer> optimizePlacement (Map<String, Long> throughputs) {
+        Map<String,Integer> newPlacement = new HashMap<>();
+        Random rand = new Random();
+
+        for(String key : throughputs.keySet()){
+            newPlacement.put(key,rand.nextInt(2));
+            //upper bound is exclusive --> random is [0,2[ (or [0,1])
+        }
+        //CALL PYTHON OPTIMIZER HERE
+        return newPlacement;
     }
 }
