@@ -306,13 +306,12 @@ cost_dynamo = (
 )
 print(f"Cost saving: {cost_dynamo-best_option[2] / stability_period:.2f}€ / h")
 
-tot_time = int(t1 - t0)
+tot_time = t1 - t0
 print(f"Took {tot_time} seconds ")
 if t1 - t0 > 60:
     print(f"({int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s)\n")
 sys.stdout.close()
 sys.stdout = sys.__stdout__
-
 
 message = (
     f"Optimisation id= {run_id}\n"
