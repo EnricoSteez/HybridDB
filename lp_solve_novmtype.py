@@ -10,6 +10,7 @@ from numpy.random import default_rng
 import re
 import json
 import telegram
+import datetime
 
 cost_write = 1.4842 / 1e6  # cost per million write requests 1.4842 / 1e6
 cost_read = 0.2968 / 1e6  # cost per million read requests 0.2968 / 1e6
@@ -339,7 +340,15 @@ if t1 - t0 > 60:
 sys.stdout.close()
 sys.stdout = sys.__stdout__
 
+message = (
+    "Optimisation:\n"
+    f"Started: {time.gmtime(t0)}\nFinished:{time.gmtime(t1)}"
+    f"\nTook: {int((tot_time-(tot_time%60))/60)}h {int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s\n"
+    'See "results.txt" for more info'
+)
+
+notify_ending(message=message)
 
 # notify = Notify()
-# notify.register(endpoint="https://notify.run/BzaTaraFb0zXHOBgryqp")
+# notify.register(endpoint='https://notify.run/BzaTaraFb0zXHOBgryqp")
 # notify.send("FINISHED!")
