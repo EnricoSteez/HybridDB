@@ -69,7 +69,7 @@ vm_costs = [
 N = params.N
 
 
-def notify_ending(message):
+def notify(message):
     with open("./keys/keys.json", "r") as keys_file:
         k = json.load(keys_file)
         token = k["telegram_token"]
@@ -204,6 +204,14 @@ old_placement = [0] * N
 # print(f"Items: {s}")
 solver = pulp.getSolver("PULP_CBC_CMD")
 t0 = time()
+message = (
+    f"Optimisation with N = {N}, {dist} distribution\n"
+    f"Started on {strftime('%a at %H:%M:%S',gmtime())}\n"
+    "AWAITING TERMINATION"
+)
+
+notify(message=message)
+
 for mt in range(13):
     m = 0  # we will start from RF in the future
     machine_step = 10
@@ -352,7 +360,7 @@ message = (
     'See "results.txt" for more info'
 )
 
-notify_ending(message=message)
+notify(message=message)
 
 if N <= 100:
     print("Distribution: ")
