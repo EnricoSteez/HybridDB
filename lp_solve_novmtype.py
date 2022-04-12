@@ -14,6 +14,7 @@ import re
 import json
 import telegram
 
+
 cost_write = 1.4842 / 1e6  # cost per million write requests 1.4842 / 1e6
 cost_read = 0.2968 / 1e6  # cost per million read requests 0.2968 / 1e6
 cost_storage = (
@@ -185,7 +186,7 @@ x = pulp.LpVariable.dicts(
 
 rng = default_rng()
 # PLACE HERE THE DESIRED DISTRIBUTION ["ycsb", "uniform", "custom"]
-dist = "uniform"
+dist = params.DISTRIBUTION
 
 # sizes in KB, throughputs in ops/s
 s, t_r, t_w = generate_items(distribution=dist, max_size=400)
@@ -357,7 +358,6 @@ sys.stdout = sys.__stdout__
 message = (
     f"Optimisation id= {run_id}\n"
     f"N = {N}, {dist} distribution\n"
-    f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
     f"Finished on {strftime('%a at %H:%M:%S',gmtime(t1))}\n"
     f"Took: {strftime('%H:%M:%S',gmtime(tot_time))}\n"
     'See "results.txt" for more info'
