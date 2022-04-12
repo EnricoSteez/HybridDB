@@ -1,5 +1,4 @@
 from cmath import inf
-from termios import PARENB
 from uuid import uuid4
 import pulp as pulp
 from pulp import constants
@@ -163,7 +162,7 @@ run_id = uuid4()
 t0 = time()
 message = (
     f"Optimisation id= {run_id}\n"
-    f"N = {N}, {dist} distribution\n"
+    f"N = {N:.0e}, {dist} distribution\n"
     f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
     "AWAITING TERMINATION"
 )
@@ -189,14 +188,12 @@ for mt in range(13):
             * 60
             * 60
             * cost_read
-            * stability_period
             + lpSum([(1 - x[i]) * s[i] * t_w[i] for i in range(N)])
             * 60
             * 60
             * cost_write
-            * stability_period
             # Cassandra
-            + m * vm_costs[mt] * stability_period
+            + m * vm_costs[mt]
         ), "Minimization of the total cost of the hybrid solution"
 
         # constraints
@@ -299,12 +296,13 @@ print(
     f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\nTOTAL COST --> {best_option[2]}€ PER HOUR \n"
 )
 
-cost_dynamo = (
-    sum(s) * cost_storage
-    + sum(t_r) * 60 * 60 * cost_read
-    + sum(t_w) * 60 * 60 * cost_write
+cost_dynamo = sum(s) * cost_storage
+
+cost_dynamo += sum(
+    (s[i] / 8 * t_r[i] * cost_read + t_w[i] * cost_write) * 60 * 60 for i in range(N)
 )
-print(f"Cost saving: {cost_dynamo-best_option[2] / stability_period:.2f}€ / h")
+
+print(f"Cost saving: {cost_dynamo-best_option[2]:.2f}€ / h")
 
 tot_time = t1 - t0
 print(f"Took {tot_time} seconds ")
@@ -315,7 +313,8 @@ sys.stdout = sys.__stdout__
 
 message = (
     f"Optimisation id= {run_id}\n"
-    f"N = {N}, {dist} distribution\n"
+    f"N = {N:.0e}, {dist} distribution\n"
+    f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
     f"Finished on {strftime('%a at %H:%M:%S',gmtime(t1))}\n"
     f"Took: {strftime('%H:%M:%S',gmtime(tot_time))}\n"
     'See "results.txt" for more info'
