@@ -1,5 +1,5 @@
 from cmath import inf
-import math
+from uuid import uuid4
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
@@ -203,10 +203,12 @@ target_items_per_type = []
 old_placement = [0] * N
 # print(f"Items: {s}")
 solver = pulp.getSolver("PULP_CBC_CMD")
+run_id = uuid4()
 t0 = time()
 message = (
-    f"Optimisation with N = {N}, {dist} distribution\n"
-    f"Started on {strftime('%a at %H:%M:%S',gmtime())}\n"
+    f"Optimisation id= {run_id}\n"
+    f"N = {N}, {dist} distribution\n"
+    f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
     "AWAITING TERMINATION"
 )
 
@@ -353,7 +355,8 @@ sys.stdout = sys.__stdout__
 
 
 message = (
-    f"Optimisation: N = {N}, Distribution={dist}\n"
+    f"Optimisation id= {run_id}\n"
+    f"N = {N}, {dist} distribution\n"
     f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
     f"Finished on {strftime('%a at %H:%M:%S',gmtime(t1))}\n"
     f"Took: {strftime('%H:%M:%S',gmtime(tot_time))}\n"
