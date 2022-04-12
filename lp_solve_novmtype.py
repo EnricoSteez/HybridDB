@@ -1,16 +1,18 @@
 from cmath import inf
+import math
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
 import params
 import numpy as np
 import sys
-import time
+from time import time
+from time import gmtime
+from time import strftime
 from numpy.random import default_rng
 import re
 import json
 import telegram
-import datetime
 
 cost_write = 1.4842 / 1e6  # cost per million write requests 1.4842 / 1e6
 cost_read = 0.2968 / 1e6  # cost per million read requests 0.2968 / 1e6
@@ -158,15 +160,15 @@ def generate_items(distribution="custom", max_size=400):
         t_r = gather_stats_ycsb("r")
         t_w = gather_stats_ycsb("w")
 
-    print(f"Size of s: {len(s)}")
-    print(f"Size of t_r: {len(t_r)}")
-    print(f"Size of t_w: {len(t_w)}")
-    print(s)
-    print("SEPARATOR")
-    print(t_r)
-    print("SEPARATOR")
-    print(t_w)
-    print("SEPARATOR")
+    print(f"Size of s: {len(s)}, max(s)={max(s)}, min(s)={min(s)}")
+    print(f"Size of t_r: {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}")
+    print(f"Size of t_w: {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}")
+    # print(s)
+    # print("SEPARATOR")
+    # print(t_r)
+    # print("SEPARATOR")
+    # print(t_w)
+    # print("SEPARATOR")
     return s, t_r, t_w
 
 
@@ -182,10 +184,11 @@ x = pulp.LpVariable.dicts(
 )
 
 rng = default_rng()
-
+# PLACE HERE THE DESIRED DISTRIBUTION ["ycsb", "uniform", "custom"]
+dist = "uniform"
 
 # sizes in KB, throughputs in ops/s
-s, t_r, t_w = generate_items(distribution="uniform", max_size=400)
+s, t_r, t_w = generate_items(distribution=dist, max_size=400)
 # print("Retrieved real world data:")
 # print(f"S->{len(s)}, t_r->{len(t_r)}, t_w->{len(t_w)}")
 # print(f"Throughputs read min {min(t_r)}, max {max(t_r)}")
@@ -200,7 +203,7 @@ target_items_per_type = []
 old_placement = [0] * N
 # print(f"Items: {s}")
 solver = pulp.getSolver("PULP_CBC_CMD")
-t0 = time.time()
+t0 = time()
 for mt in range(13):
     m = 0  # we will start from RF in the future
     machine_step = 10
@@ -311,7 +314,7 @@ for mt in range(13):
             )
             break
 
-t1 = time.time()
+t1 = time()
 print("FINAL RESULTS:")
 for mtype, n, cost in costs_per_type:
     print(f"{mtype}: {n} machines --> {cost:.3f}€ per hour")
@@ -340,15 +343,19 @@ if t1 - t0 > 60:
 sys.stdout.close()
 sys.stdout = sys.__stdout__
 
+
 message = (
-    "Optimisation:\n"
-    f"Started: {time.gmtime(t0)}\nFinished:{time.gmtime(t1)}"
-    f"\nTook: {int((tot_time-(tot_time%60))/60)}h {int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s\n"
+    f"Optimisation: N = {N}, Distribution={dist}\n"
+    f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
+    f"Finished on {strftime('%a at %H:%M:%S',gmtime(t1))}\n"
+    f"Took: {strftime('%H:%M:%S',gmtime(tot_time))}\n"
     'See "results.txt" for more info'
 )
 
 notify_ending(message=message)
 
-# notify = Notify()
-# notify.register(endpoint='https://notify.run/BzaTaraFb0zXHOBgryqp")
-# notify.send("FINISHED!")
+if N <= 100:
+    print("Distribution: ")
+    print("Item\tSize\tT_R\tT_w\tPlacement\n")
+    for i in range(N):
+        print(f"{i}\t{s[i]}\t{t_r[i]}\t{t_w[i]}\t{x[i].value()}")

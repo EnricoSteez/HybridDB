@@ -1,388 +1,382 @@
-Size of s: 10
-Size of t_r: 10
-Size of t_w: 10
-[85.48018514164553, 217.39370885205403, 259.3727596097652, 185.10094837037258, 200.60257872528678, 349.83526621491495, 37.91258754727732, 240.34748014941087, 35.20972072648357, 166.0235743724658]
-SEPARATOR
-[ 18 240 134 443 302  66 496 137  73 499]
-SEPARATOR
-[332 350 192 382 249 393  46  33 102 159]
-SEPARATOR
+Size of s: 1000, max(s)=399.99239992533444, min(s)=1.2947091623495932
+Size of t_r: 1000, max(t_r)=499, min(t_r)=1
+Size of t_w: 1000, max(t_w)=499, min(t_w)=1
 Evaluating 0 machines of type m4.large
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type m4.large
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.00220406678725e-05
 Cost of Cassandra (1 hour) = 1.000
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 1.0
+Number of items on Cassandra :86.0, items on Dynamo: 914.0
+Percentage of items on Cassandra: 0.086%
+Percentage of iops on Cassandra: 36.0%
+Amount of data on Cassandra:0/0 [GB] (0.14%)
+TOTAL COST: 1.000070022040668
 
 Evaluating 1 machines of type m4.large
-Cost of Dynamo (1 hour) = 8.026709889630697e-08
+Cost of Dynamo (1 hour) = 7.99490024058009e-05
 Cost of Cassandra (1 hour) = 0.100
-Number of items on Cassandra :8.0, items on Dynamo: 2.0
-Percentage of items on Cassandra: 0.8%
-Percentage of iops on Cassandra: 344.6%
-Amount of data on Cassandra:0/0 [GB] (0.89%)
-TOTAL COST: 0.1000000802670989
+Number of items on Cassandra :11.0, items on Dynamo: 989.0
+Percentage of items on Cassandra: 0.011%
+Percentage of iops on Cassandra: 3.595%
+Amount of data on Cassandra:0/0 [GB] (0.02%)
+TOTAL COST: 0.10007994900240581
 
-Optimal cluster of type m4.large has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type m4.large has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type m4.xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type m4.xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 6.357088358017854e-05
 Cost of Cassandra (1 hour) = 2.000
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 2.0
+Number of items on Cassandra :136.0, items on Dynamo: 864.0
+Percentage of items on Cassandra: 0.136%
+Percentage of iops on Cassandra: 59.998%
+Amount of data on Cassandra:0/0 [GB] (0.22%)
+TOTAL COST: 2.0000635708835803
 
 Evaluating 1 machines of type m4.xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.912970685702075e-05
 Cost of Cassandra (1 hour) = 0.200
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 0.2
+Number of items on Cassandra :17.0, items on Dynamo: 983.0
+Percentage of items on Cassandra: 0.017%
+Percentage of iops on Cassandra: 5.996%
+Amount of data on Cassandra:0/0 [GB] (0.03%)
+TOTAL COST: 0.20007912970685704
 
-Optimal cluster of type m4.xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type m4.xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type m4.2xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type m4.2xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 5.908343024561109e-05
 Cost of Cassandra (1 hour) = 4.000
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 4.0
+Number of items on Cassandra :171.0, items on Dynamo: 829.0
+Percentage of items on Cassandra: 0.171%
+Percentage of iops on Cassandra: 80.0%
+Amount of data on Cassandra:0/0 [GB] (0.28%)
+TOTAL COST: 4.000059083430245
 
 Evaluating 1 machines of type m4.2xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.856033758714222e-05
 Cost of Cassandra (1 hour) = 0.400
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 0.4
+Number of items on Cassandra :21.0, items on Dynamo: 979.0
+Percentage of items on Cassandra: 0.021%
+Percentage of iops on Cassandra: 7.999%
+Amount of data on Cassandra:0/0 [GB] (0.04%)
+TOTAL COST: 0.40007856033758715
 
-Optimal cluster of type m4.2xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type m4.2xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type m4.4xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type m4.4xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 4.238617797707966e-05
 Cost of Cassandra (1 hour) = 8.000
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 8.0
+Number of items on Cassandra :320.0, items on Dynamo: 680.0
+Percentage of items on Cassandra: 0.32%
+Percentage of iops on Cassandra: 159.999%
+Amount of data on Cassandra:0/0 [GB] (0.48%)
+TOTAL COST: 8.000042386177977
 
 Evaluating 1 machines of type m4.4xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.599741613567758e-05
 Cost of Cassandra (1 hour) = 0.800
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 0.8
+Number of items on Cassandra :40.0, items on Dynamo: 960.0
+Percentage of items on Cassandra: 0.04%
+Percentage of iops on Cassandra: 15.993%
+Amount of data on Cassandra:0/0 [GB] (0.07%)
+TOTAL COST: 0.8000759974161358
 
-Optimal cluster of type m4.4xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type m4.4xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type m4.10xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type m4.10xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 1.535039734326533e-05
 Cost of Cassandra (1 hour) = 20.000
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 20.0
+Number of items on Cassandra :633.0, items on Dynamo: 367.0
+Percentage of items on Cassandra: 0.633%
+Percentage of iops on Cassandra: 319.995%
+Amount of data on Cassandra:0/0 [GB] (0.81%)
+TOTAL COST: 20.000015350397344
 
 Evaluating 1 machines of type m4.10xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.109744511891226e-05
 Cost of Cassandra (1 hour) = 2.000
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 2.0
+Number of items on Cassandra :78.0, items on Dynamo: 922.0
+Percentage of items on Cassandra: 0.078%
+Percentage of iops on Cassandra: 31.998%
+Amount of data on Cassandra:0/0 [GB] (0.13%)
+TOTAL COST: 2.000071097445119
 
-Optimal cluster of type m4.10xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type m4.10xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type m4.16xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type m4.16xlarge
 Cost of Dynamo (1 hour) = 0.0
 Cost of Cassandra (1 hour) = 32.000
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
+Number of items on Cassandra :1000.0, items on Dynamo: 0.0
 Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
+Percentage of iops on Cassandra: 496.2%
 Amount of data on Cassandra:0/0 [GB] (1.00%)
 TOTAL COST: 32.0
 
 Evaluating 1 machines of type m4.16xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 6.243834506881528e-05
 Cost of Cassandra (1 hour) = 3.200
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 3.2
+Number of items on Cassandra :145.0, items on Dynamo: 855.0
+Percentage of items on Cassandra: 0.145%
+Percentage of iops on Cassandra: 64.996%
+Amount of data on Cassandra:0/0 [GB] (0.23%)
+TOTAL COST: 3.200062438345069
 
-Optimal cluster of type m4.16xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type m4.16xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type i3.large
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type i3.large
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.149604858253068e-05
 Cost of Cassandra (1 hour) = 1.560
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 1.56
+Number of items on Cassandra :75.0, items on Dynamo: 925.0
+Percentage of items on Cassandra: 0.075%
+Percentage of iops on Cassandra: 29.999%
+Amount of data on Cassandra:0/0 [GB] (0.12%)
+TOTAL COST: 1.5600714960485826
 
 Evaluating 1 machines of type i3.large
-Cost of Dynamo (1 hour) = 1.277693590100159e-07
+Cost of Dynamo (1 hour) = 8.024381560665987e-05
 Cost of Cassandra (1 hour) = 0.156
-Number of items on Cassandra :6.0, items on Dynamo: 4.0
-Percentage of items on Cassandra: 0.6%
-Percentage of iops on Cassandra: 292.1%
-Amount of data on Cassandra:0/0 [GB] (0.82%)
-TOTAL COST: 0.156000127769359
+Number of items on Cassandra :9.0, items on Dynamo: 991.0
+Percentage of items on Cassandra: 0.009%
+Percentage of iops on Cassandra: 2.994%
+Amount of data on Cassandra:0/0 [GB] (0.02%)
+TOTAL COST: 0.15608024381560667
 
-Optimal cluster of type i3.large has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type i3.large has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type i3.xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type i3.xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 6.357088358017854e-05
 Cost of Cassandra (1 hour) = 3.120
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 3.12
+Number of items on Cassandra :136.0, items on Dynamo: 864.0
+Percentage of items on Cassandra: 0.136%
+Percentage of iops on Cassandra: 59.998%
+Amount of data on Cassandra:0/0 [GB] (0.22%)
+TOTAL COST: 3.1200635708835804
 
 Evaluating 1 machines of type i3.xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.912970685702075e-05
 Cost of Cassandra (1 hour) = 0.312
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 0.312
+Number of items on Cassandra :17.0, items on Dynamo: 983.0
+Percentage of items on Cassandra: 0.017%
+Percentage of iops on Cassandra: 5.996%
+Amount of data on Cassandra:0/0 [GB] (0.03%)
+TOTAL COST: 0.31207912970685703
 
-Optimal cluster of type i3.xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type i3.xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type i3.2xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type i3.2xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 5.015296766557664e-05
 Cost of Cassandra (1 hour) = 6.240
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 6.24
+Number of items on Cassandra :247.0, items on Dynamo: 753.0
+Percentage of items on Cassandra: 0.247%
+Percentage of iops on Cassandra: 119.997%
+Amount of data on Cassandra:0/0 [GB] (0.38%)
+TOTAL COST: 6.240050152967666
 
 Evaluating 1 machines of type i3.2xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.694278827056644e-05
 Cost of Cassandra (1 hour) = 0.624
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 0.624
+Number of items on Cassandra :33.0, items on Dynamo: 967.0
+Percentage of items on Cassandra: 0.033%
+Percentage of iops on Cassandra: 11.998%
+Amount of data on Cassandra:0/0 [GB] (0.06%)
+TOTAL COST: 0.6240769427882705
 
-Optimal cluster of type i3.2xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type i3.2xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type i3.4xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type i3.4xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 4.238617797707966e-05
 Cost of Cassandra (1 hour) = 12.480
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 12.48
+Number of items on Cassandra :320.0, items on Dynamo: 680.0
+Percentage of items on Cassandra: 0.32%
+Percentage of iops on Cassandra: 159.999%
+Amount of data on Cassandra:0/0 [GB] (0.48%)
+TOTAL COST: 12.480042386177978
 
 Evaluating 1 machines of type i3.4xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.599741613567758e-05
 Cost of Cassandra (1 hour) = 1.248
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 1.248
+Number of items on Cassandra :40.0, items on Dynamo: 960.0
+Percentage of items on Cassandra: 0.04%
+Percentage of iops on Cassandra: 15.993%
+Amount of data on Cassandra:0/0 [GB] (0.07%)
+TOTAL COST: 1.2480759974161357
 
-Optimal cluster of type i3.4xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type i3.4xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type i3.8xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type i3.8xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 1.4640790035422894e-05
 Cost of Cassandra (1 hour) = 24.960
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 24.96
+Number of items on Cassandra :643.0, items on Dynamo: 357.0
+Percentage of items on Cassandra: 0.643%
+Percentage of iops on Cassandra: 324.998%
+Amount of data on Cassandra:0/0 [GB] (0.82%)
+TOTAL COST: 24.960014640790035
 
 Evaluating 1 machines of type i3.8xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 7.097969277298171e-05
 Cost of Cassandra (1 hour) = 2.496
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 2.496
+Number of items on Cassandra :79.0, items on Dynamo: 921.0
+Percentage of items on Cassandra: 0.079%
+Percentage of iops on Cassandra: 32.495%
+Amount of data on Cassandra:0/0 [GB] (0.13%)
+TOTAL COST: 2.496070979692773
 
-Optimal cluster of type i3.8xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type i3.8xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type i3.16xlarge
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type i3.16xlarge
 Cost of Dynamo (1 hour) = 0.0
 Cost of Cassandra (1 hour) = 19.920
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
+Number of items on Cassandra :1000.0, items on Dynamo: 0.0
 Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
+Percentage of iops on Cassandra: 496.2%
 Amount of data on Cassandra:0/0 [GB] (1.00%)
 TOTAL COST: 19.92
 
 Evaluating 1 machines of type i3.16xlarge
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 6.243834506881528e-05
 Cost of Cassandra (1 hour) = 1.992
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 1.992
+Number of items on Cassandra :145.0, items on Dynamo: 855.0
+Percentage of items on Cassandra: 0.145%
+Percentage of iops on Cassandra: 64.996%
+Amount of data on Cassandra:0/0 [GB] (0.23%)
+TOTAL COST: 1.992062438345069
 
-Optimal cluster of type i3.16xlarge has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type i3.16xlarge has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 Evaluating 0 machines of type i3.metal
-Cost of Dynamo (1 hour) = 6.995179895629226e-07
+Cost of Dynamo (1 hour) = 8.15372685243112e-05
 Cost of Cassandra (1 hour) = 0.000
-Number of items on Cassandra :0.0, items on Dynamo: 10.0
+Number of items on Cassandra :0.0, items on Dynamo: 1000.0
 Percentage of items on Cassandra: 0.0%
 Percentage of iops on Cassandra: 0.0%
 Amount of data on Cassandra:0/0 [GB] (0.00%)
-TOTAL COST: 6.995179895629226e-07
+TOTAL COST: 8.15372685243112e-05
 
 Evaluating 10 machines of type i3.metal
 Cost of Dynamo (1 hour) = 0.0
 Cost of Cassandra (1 hour) = 49.920
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
+Number of items on Cassandra :1000.0, items on Dynamo: 0.0
 Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
+Percentage of iops on Cassandra: 496.2%
 Amount of data on Cassandra:0/0 [GB] (1.00%)
 TOTAL COST: 49.92
 
 Evaluating 1 machines of type i3.metal
-Cost of Dynamo (1 hour) = 0.0
+Cost of Dynamo (1 hour) = 5.908343024561109e-05
 Cost of Cassandra (1 hour) = 4.992
-Number of items on Cassandra :10.0, items on Dynamo: 0.0
-Percentage of items on Cassandra: 1.0%
-Percentage of iops on Cassandra: 464.6%
-Amount of data on Cassandra:0/0 [GB] (1.00%)
-TOTAL COST: 4.992
+Number of items on Cassandra :171.0, items on Dynamo: 829.0
+Percentage of items on Cassandra: 0.171%
+Percentage of iops on Cassandra: 80.0%
+Amount of data on Cassandra:0/0 [GB] (0.28%)
+TOTAL COST: 4.992059083430245
 
-Optimal cluster of type i3.metal has 0 machine, with a cost per hour of 6.995179895629226e-07
+Optimal cluster of type i3.metal has 0 machine, with a cost per hour of 8.15372685243112e-05
 --------------------------------------------------------------------------------
 FINAL RESULTS:
 0: 0 machines --> 0.000€ per hour
@@ -399,7 +393,7 @@ FINAL RESULTS:
 11: 0 machines --> 0.000€ per hour
 12: 0 machines --> 0.000€ per hour
 BEST OPTION IS m4.large, CLUSTER OF 0 MACHINES,
-TOTAL COST --> 6.995179895629226e-07€ PER HOUR 
+TOTAL COST --> 8.15372685243112e-05€ PER HOUR 
 
-Cost saving: 14.530802399999999
-Took 1 seconds 
+Cost saving: 1602.48604392
+Took 9 seconds 
