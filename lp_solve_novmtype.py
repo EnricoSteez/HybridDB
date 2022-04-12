@@ -1,4 +1,5 @@
 from cmath import inf
+from termios import PARENB
 from uuid import uuid4
 import pulp as pulp
 from pulp import constants
@@ -14,60 +15,14 @@ import re
 import json
 import telegram
 
-
-cost_write = 1.4842 / 1e6  # cost per million write requests 1.4842 / 1e6
-cost_read = 0.2968 / 1e6  # cost per million read requests 0.2968 / 1e6
-cost_storage = (
-    0.29715 / 30 / 24 / 2 ** 20
-)  # 0.29715 cost per GB per month -> per Kilo byte per hour
-
-vm_types = [
-    "m4.large",
-    "m4.xlarge",
-    "m4.2xlarge",
-    "m4.4xlarge",
-    "m4.10xlarge",
-    "m4.16xlarge",
-    "i3.large",
-    "i3.xlarge",
-    "i3.2xlarge",
-    "i3.4xlarge",
-    "i3.8xlarge",
-    "i3.16xlarge",
-    "i3.metal",
-]
-vm_IOPS = [
-    3600,
-    6000,
-    8000,
-    16000,
-    32000,
-    65000,
-    3000,
-    6000,
-    12000,
-    16000,
-    32500,
-    65000,
-    80000,
-]
-vm_costs = [
-    0.1,
-    0.2,
-    0.4,
-    0.8,
-    2,
-    3.2,
-    0.156,
-    0.312,
-    0.624,
-    1.248,
-    2.496,
-    1.992,
-    4.992,
-]
-
 N = params.N
+cost_write = params.COST_WRITE_UNIT
+cost_read = params.COST_READ_UNIT
+cost_storage = params.COST_STORAGE
+vm_types = params.vm_types
+vm_IOPS = params.vm_IOPS
+vm_costs = params.vm_costs
+stability_period = params.WORKLOAD_STABILITY
 
 
 def notify(message):
@@ -230,14 +185,18 @@ for mt in range(13):
         problem += (
             # Dynamo
             lpSum([(1 - x[i]) * s[i] for i in range(N)]) * cost_storage
-            + lpSum(
-                [(1 - x[i]) * s[i] / 8 * t_r[i] * 60 * 60 * cost_read for i in range(N)]
-            )
-            + lpSum(
-                [(1 - x[i]) * s[i] * t_w[i] * 60 * 60 * cost_write for i in range(N)]
-            )
+            + lpSum([(1 - x[i]) * s[i] / 8 * t_r[i] for i in range(N)])
+            * 60
+            * 60
+            * cost_read
+            * stability_period
+            + lpSum([(1 - x[i]) * s[i] * t_w[i] for i in range(N)])
+            * 60
+            * 60
+            * cost_write
+            * stability_period
             # Cassandra
-            + m * vm_costs[mt]
+            + m * vm_costs[mt] * stability_period
         ), "Minimization of the total cost of the hybrid solution"
 
         # constraints
@@ -345,7 +304,7 @@ cost_dynamo = (
     + sum(t_r) * 60 * 60 * cost_read
     + sum(t_w) * 60 * 60 * cost_write
 )
-print(f"Cost saving: {cost_dynamo-best_option[2]}")
+print(f"Cost saving: {cost_dynamo-best_option[2] / stability_period:.2f}€ / h")
 
 tot_time = int(t1 - t0)
 print(f"Took {tot_time} seconds ")
