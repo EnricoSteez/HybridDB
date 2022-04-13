@@ -203,7 +203,7 @@ for mt in range(13):
 
         # --------------------########## COMPUTATION POWER ##########--------------------
         problem += (
-            lpSum([x[i] * (t_r[i] + t_w[i]) for i in range(N)]) <= vm_IOPS[mt] * m
+            lpSum([x[i] * (t_r[i] + t_w[i]) for i in range(N)]) *60 * 60 <= vm_IOPS[mt] * m
         )
 
         result = problem.solve(solver)
