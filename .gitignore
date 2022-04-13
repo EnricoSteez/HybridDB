@@ -5,3 +5,5 @@
 */target/
 keys/
 stats/
+readStats.txt
+writeStats.txt

@@ -11,13 +11,10 @@ with open("IBMObjectStoreTrace000Part0", "r") as file, open(
 ) as output:
     for line in file:
         if not re.match(pattern, line):
-            # print("line doesn't match")
+            print(f"line {line} doesn't match")
             continue
 
         line = line.split()
-        # print(f"parsing {line}")
-        #        if len(line) < 4:
-        #           continue
 
         try:
             ts = int(line[0])

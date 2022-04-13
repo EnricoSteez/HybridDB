@@ -57,6 +57,7 @@ def gather_stats_ycsb(which: str) -> list:
             i += 1
 
         while len(throughputs) < N:
+            print(f"Appending one zero to throughputs t_{which}")
             throughputs.append(0)
 
     # print(f"Returning throughputs mode->{which}")
