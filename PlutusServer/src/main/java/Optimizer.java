@@ -86,7 +86,7 @@ public record Optimizer(
 
             Set<String> fails = moveData(itemsToMove);
             if(!fails.isEmpty()) {
-
+                //TODO
             }
 
             CoordinationServices.UnfreezeRequest unfreezeRequest = CoordinationServices.UnfreezeRequest.newBuilder()

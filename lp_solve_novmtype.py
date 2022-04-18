@@ -1,4 +1,5 @@
 from cmath import inf
+from math import dist
 from uuid import uuid4
 import pulp as pulp
 from pulp import constants
@@ -13,8 +14,12 @@ from numpy.random import default_rng
 import re
 import json
 import telegram
+from os import path
+import threading
+from functools import partial
 
-N = params.N
+print = partial(print, flush=True)
+
 cost_write = params.COST_WRITE_UNIT
 cost_read = params.COST_READ_UNIT
 cost_storage = params.COST_STORAGE
@@ -33,25 +38,25 @@ def notify(message):
     bot.sendMessage(chat_id=chat_id, text=message)
 
 
-def gather_stats_ycsb(which: str) -> list:
+def gather_stats_ycsb(which: str, scale: float) -> list:
     throughputs = []
     if which == "r":
         filename = "readStats.txt"
     elif which == "w":
         filename = "writeStats.txt"
 
-    # print(f"Opening file {filename} for required throughputs -->{which}")
+    print(f'Gathering ycsb throughputs mode="{which}" scale={scale}')
 
     with open(filename, mode="r") as file:
         i = 0
         while i < N:
             line = file.readline()
-            if not re.match("user[0-9]+ [0-9]+", line):
+            if not re.match("user[0-9]+ [0-9]+", line) and line != "\n":
                 print(f"Found errors in throughputs in line {line}")
                 i += 1
                 continue
 
-            tp = int(line.split()[1])  # kv[0]=key, kv[1]=value
+            tp = int(line.split()[1]) * scale  # kv[0]=key, kv[1]=value
 
             throughputs.append(tp)
             i += 1
@@ -92,33 +97,33 @@ def gather_sizes_ibm():
     return s
 
 
-def generate_items(distribution="custom", max_size=400):
+def generate_items(distribution, scale=1.0):
     # ycsb: constant 100KB sizes, zipfian throughputs
     # uniform: everything uniformely distribuetd
     # custom: sizes from ibm traces, throughputs from YCSB
-    allowed_dist = ["ycsb", "uniform", "custom"]
-    if not distribution in allowed_dist:
-        raise ValueError(f"Cannot generate sizes with distribution: {distribution}")
     if distribution == "ycsb":
         s = [100] * N
-        t_r = gather_stats_ycsb("r")
-        t_w = gather_stats_ycsb("w")
+        t_r = gather_stats_ycsb("r", scale)
+        t_w = gather_stats_ycsb("w", scale)
 
     elif distribution == "uniform":
         # uniform distribution
-        s = list((max_size - 1) * np.random.rand(N) + 1)  # size in Bytes
-        t_r = np.random.randint(1, 500, N)
-        t_w = np.random.randint(1, 500, N)
+        # max size for DynamoDB is 400KB
+        s = list((400 - 1) * np.random.rand(N) + 1)  # size in Bytes
+        t_r = np.random.randint(1, 500 * scale, N)
+        t_w = np.random.randint(1, 500 * scale, N)
 
     # sizes are IBM, throughputs are YCSB
     elif distribution == "custom":
         s = gather_sizes_ibm()
-        t_r = gather_stats_ycsb("r")
-        t_w = gather_stats_ycsb("w")
+        t_r = gather_stats_ycsb("r", scale)
+        t_w = gather_stats_ycsb("w", scale)
 
     print(f"Size of s: {len(s)}, max(s)={max(s)}, min(s)={min(s)}")
+    print(f"Throughputs scale: {scale}")
     print(f"Size of t_r: {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}")
     print(f"Size of t_w: {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}")
+    print("\n")
     # print(s)
     # print("SEPARATOR")
     # print(t_r)
@@ -127,6 +132,25 @@ def generate_items(distribution="custom", max_size=400):
     # print("SEPARATOR")
     return s, t_r, t_w
 
+
+print(f"{len(sys.argv)} arguments")
+if len(sys.argv) < 3 or len(sys.argv) > 5:
+    sys.exit(
+        f"Usage: python3 {path.basename(__file__)} <N> <uniform|ycsb|custom> [TPscaling]"
+    )
+try:
+    N = int(sys.argv[1])
+    if len(sys.argv) == 4:
+        scaling = float(sys.argv[3])
+    else:
+        scaling = 1
+except ValueError:
+    sys.exit("N and TPscaling must be numbers")
+
+dist = sys.argv[2]
+allowed_dists = ["ycsb", "uniform", "custom"]
+if not dist in allowed_dists:
+    raise ValueError(f"Cannot generate sizes with distribution: {dist}")
 
 sys.stdout = open("results.txt", "w")
 
@@ -140,11 +164,9 @@ x = pulp.LpVariable.dicts(
 )
 
 rng = default_rng()
-# PLACE HERE THE DESIRED DISTRIBUTION ["ycsb", "uniform", "custom"]
-dist = params.DISTRIBUTION
 
 # sizes in KB, throughputs in ops/s
-s, t_r, t_w = generate_items(distribution=dist, max_size=400)
+s, t_r, t_w = generate_items(distribution=dist, scale=scaling)
 # print("Retrieved real world data:")
 # print(f"S->{len(s)}, t_r->{len(t_r)}, t_w->{len(t_w)}")
 # print(f"Throughputs read min {min(t_r)}, max {max(t_r)}")
@@ -167,16 +189,16 @@ message = (
     f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
     "AWAITING TERMINATION"
 )
-
-notify(message=message)
+threading.Thread(target=notify(message=message)).start()
+# notify(message=message)
 
 for mt in range(13):
+    # TODO while best_cost < max(observed costs in costs_per_type)
     m = 0  # we will start from RF in the future
     machine_step = 10
     fine_tuning_stage = False  # whether we are in the binary search phase or not
     prev_cost = inf
-
-    while m <= 300:
+    while True:
         print(f"Evaluating {m} machines of type {vm_types[mt]}")
         # Optimization Problem
         problem = pulp.LpProblem("ItemsDisplacement", pulp.LpMinimize)
@@ -185,17 +207,19 @@ for mt in range(13):
         problem += (
             # Dynamo
             lpSum([(1 - x[i]) * s[i] for i in range(N)]) * cost_storage
-            + lpSum([(1 - x[i]) * s[i] / 8 * t_r[i] for i in range(N)])
-            * 60
-            * 60
-            * cost_read
-            + lpSum([(1 - x[i]) * s[i] * t_w[i] for i in range(N)])
-            * 60
-            * 60
-            * cost_write
+            + lpSum(
+                [
+                    (1 - x[i]) * (s[i] / 8) * t_r[i] * 60 * 60 * cost_read
+                    for i in range(N)
+                ]
+            )
+            + lpSum(
+                [(1 - x[i]) * s[i] * t_w[i] * 60 * 60 * cost_write for i in range(N)]
+            )
             # Cassandra
-            + m * vm_costs[mt]
-        ), "Minimization of the total cost of the hybrid solution"
+            + m * vm_costs[mt],
+            "Minimization of the total cost of the hybrid solution",
+        )
 
         # constraints
         # --------------------########## MEMORY ##########--------------------
@@ -203,49 +227,50 @@ for mt in range(13):
 
         # --------------------########## COMPUTATION POWER ##########--------------------
         problem += (
-            lpSum([x[i] * (t_r[i] + t_w[i]) for i in range(N)]) *60 * 60 <= vm_IOPS[mt] * m
+            lpSum([x[i] * (t_r[i] + t_w[i]) for i in range(N)]) <= vm_IOPS[mt] * m
         )
 
         result = problem.solve(solver)
 
         # cost of Dynamo
-        cost_dynamo = sum([(1 - x[i].value()) * s[i] for i in range(N)]) * cost_storage
-        +sum(
-            [
-                (1 - x[i].value()) * (s[i] / 8) * t_r[i] * 60 * 60 * cost_read
-                for i in range(N)
-            ]
+        # 1 read unit every 8 KB (multiply the throughput by size/8)
+        cost_dynamo = (
+            sum((1 - x[i].value()) * s[i] for i in range(N)) * cost_storage
+            + sum((1 - x[i].value()) * (s[i] / 8) * t_r[i] for i in range(N))
+            * 60
+            * 60
+            * cost_read
+            # 1 write unit every KB (multiply the throughput by the size in KB to obtain the units)
+            + sum((1 - x[i].value()) * s[i] * t_w[i] for i in range(N))
+            * 60
+            * 60
+            * cost_write
         )
-        +sum(
-            [
-                (1 - x[i].value()) * s[i] * t_w[i] * 60 * 60 * cost_write
-                for i in range(N)
-            ]
-        )
-        print(f"Cost of Dynamo (1 hour) = {cost_dynamo}")
+        print(f"Cost of Dynamo (1 hour) = {cost_dynamo:.3f}")
 
         # cost of Cassandra
         cost_cassandra = m * vm_costs[mt]
         print(f"Cost of Cassandra (1 hour) = {cost_cassandra:.3f}")
 
         items_cassandra = sum(x[i].value() for i in range(N))
+        items_dynamo = sum(1 - x[i].value() for i in range(N))
         iops_cassandra = sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
-
+        tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
         print(
-            f"Number of items on Cassandra :{items_cassandra}, items on Dynamo: {N-items_cassandra}"
+            f"Number of items on Cassandra :{items_cassandra}, items on Dynamo: {items_dynamo}"
         )
         print(f"Percentage of items on Cassandra: {items_cassandra/N}%")
-        print(f"Percentage of iops on Cassandra: {iops_cassandra/N}%")
-        size_cassandra = sum([(x[i].value()) * s[i] for i in range(N)])
+        print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops}%")
+        size_cassandra = sum((x[i].value()) * s[i] for i in range(N))
         print(
-            f"Amount of data on Cassandra:{int(size_cassandra/2**20)}/{int(total_size/2**20)} [GB] ({size_cassandra/total_size:.2f}%)"
+            f"Amount of data on Cassandra: {size_cassandra/2**10:.2f}/{total_size/2**10:.2f} [MB] ({size_cassandra/total_size:.2f}%)"
         )
 
         total_cost = cost_dynamo + cost_cassandra
-        print(f"TOTAL COST: {total_cost:}\n")
+        print(f"TOTAL COST: {total_cost:.2f}\n")
         if (
             total_cost < prev_cost and not fine_tuning_stage and items_cassandra != N
-        ):  # total cost is decreasing -> proceed normally
+        ):  # total cost is decreasing and placement is still hybrid -> proceed normally
             prev_cost = total_cost
             best_cost = total_cost
             best_placement = [x[i].value() for i in range(N)]
@@ -257,16 +282,15 @@ for mt in range(13):
         ):  # total cost is increasing --> enter fine_tuning_stage phase to find the perfect m
             prev_cost = total_cost
             fine_tuning_stage = True
-            m = (
-                prev_m + 1
-            )  # start by exploring linearly the last unexplored sector of possible sizes
+            # start by exploring linearly the last unexplored sector of possible sizes
+            m = prev_m + 1
         elif (
             total_cost < best_cost
         ):  # fine_tuning_stage phase, cost is still decreasing: increase m by 1 and keep exploring
             prev_m = m
+            best_machines = m
             m += 1
             best_cost = total_cost
-            best_machines = m
             prev_cost = total_cost
             best_placement = [x[i].value() for i in range(N)]
         else:  # fine_tuning_stage phase, cost is increasing: best is previous
@@ -284,8 +308,8 @@ for mt in range(13):
 
 t1 = time()
 print("FINAL RESULTS:")
-for mtype, n, cost in costs_per_type:
-    print(f"{mtype}: {n} machines --> {cost:.3f}€ per hour")
+for mt, n, cost in costs_per_type:
+    print(f"{vm_types[mt]}: {n} machines --> {cost:.3f} € per hour")
 
 best_cost = inf
 for (mt, number, cost) in costs_per_type:
@@ -297,13 +321,16 @@ print(
     f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\nTOTAL COST --> {best_option[2]}€ PER HOUR \n"
 )
 
-cost_dynamo = sum(s) * cost_storage
-
-cost_dynamo += sum(
-    (s[i] / 8 * t_r[i] * cost_read + t_w[i] * cost_write) * 60 * 60 for i in range(N)
+cost_dynamo = (
+    sum(s) * cost_storage
+    + sum((s[i] / 8) * t_r[i] for i in range(N)) * 60 * 60 * cost_read
+    + sum(s[i] * t_w[i] for i in range(N)) * 60 * 60 * cost_write
 )
 
-print(f"Cost saving: {cost_dynamo-best_option[2]:.2f}€ / h")
+print(
+    f"Cost of only DYNAMO: {cost_dynamo}\n"
+    f"Cost saving compared to using only DynamoDB: {cost_dynamo-best_option[2]:.2f} € / h"
+)
 
 tot_time = t1 - t0
 print(f"Took {tot_time} seconds ")
@@ -320,11 +347,5 @@ message = (
     f"Took: {strftime('%H:%M:%S',gmtime(tot_time))}\n"
     'See "results.txt" for more info'
 )
-
-notify(message=message)
-
-if N <= 100:
-    print("Distribution: ")
-    print("Item\tSize\tT_R\tT_w\tPlacement\n")
-    for i in range(N):
-        print(f"{i}\t{s[i]}\t{t_r[i]}\t{t_w[i]}\t{x[i].value()}")
+threading.Thread(target=notify(message=message)).start()
+# notify(message=message)
