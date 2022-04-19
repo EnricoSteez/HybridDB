@@ -257,7 +257,7 @@ for mt in range(13):
         iops_cassandra = sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
         tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
         print(
-            f"Number of items on Cassandra :{items_cassandra}, items on Dynamo: {items_dynamo}"
+            f"Number of items on Cassandra :{int(items_cassandra)}, items on Dynamo: {int(items_dynamo)}"
         )
         print(f"Percentage of items on Cassandra: {items_cassandra/N}%")
         print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops}%")
