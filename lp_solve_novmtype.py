@@ -133,7 +133,6 @@ def generate_items(distribution, scale=1.0):
     return s, t_r, t_w
 
 
-print(f"{len(sys.argv)} arguments")
 if len(sys.argv) < 3 or len(sys.argv) > 5:
     sys.exit(
         f"Usage: python3 {path.basename(__file__)} <N> <uniform|ycsb|custom> [TPscaling]"
@@ -176,7 +175,7 @@ s, t_r, t_w = generate_items(distribution=dist, scale=scaling)
 total_size = sum(s)
 
 # for every machine type, it contains a tuple (pair) of the cost-wise best number of machines and its associated cost
-costs_per_type = []
+costs_per_type = dict()
 target_items_per_type = []
 old_placement = [0] * N
 # print(f"Items: {s}")
@@ -192,8 +191,9 @@ message = (
 threading.Thread(target=notify(message=message)).start()
 # notify(message=message)
 
+best_overall = inf
+
 for mt in range(13):
-    # TODO while best_cost < max(observed costs in costs_per_type)
     m = 0  # we will start from RF in the future
     machine_step = 10
     fine_tuning_stage = False  # whether we are in the binary search phase or not
@@ -254,13 +254,13 @@ for mt in range(13):
 
         items_cassandra = sum(x[i].value() for i in range(N))
         items_dynamo = sum(1 - x[i].value() for i in range(N))
-        iops_cassandra = sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
+        iops_cassandra = int(sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N)))
         tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
         print(
-            f"Number of items on Cassandra :{int(items_cassandra)}, items on Dynamo: {int(items_dynamo)}"
+            f"Number of items on Cassandra :{items_cassandra}, items on Dynamo: {int(items_dynamo)}"
         )
-        print(f"Percentage of items on Cassandra: {items_cassandra/N}%")
-        print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops}%")
+        print(f"Percentage of items on Cassandra: {items_cassandra/N:.2f}%")
+        print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2f}%")
         size_cassandra = sum((x[i].value()) * s[i] for i in range(N))
         print(
             f"Amount of data on Cassandra: {size_cassandra/2**10:.2f}/{total_size/2**10:.2f} [MB] ({size_cassandra/total_size:.2f}%)"
@@ -272,7 +272,7 @@ for mt in range(13):
             total_cost < prev_cost and not fine_tuning_stage and items_cassandra != N
         ):  # total cost is decreasing and placement is still hybrid -> proceed normally
             prev_cost = total_cost
-            best_cost = total_cost
+            best_cost_current_vmtype = total_cost
             best_placement = [x[i].value() for i in range(N)]
             best_machines = m
             prev_m = m
@@ -285,36 +285,38 @@ for mt in range(13):
             # start by exploring linearly the last unexplored sector of possible sizes
             m = prev_m + 1
         elif (
-            total_cost < best_cost
+            total_cost < best_cost_current_vmtype
         ):  # fine_tuning_stage phase, cost is still decreasing: increase m by 1 and keep exploring
             prev_m = m
             best_machines = m
             m += 1
-            best_cost = total_cost
+            best_cost_current_vmtype = total_cost
             prev_cost = total_cost
             best_placement = [x[i].value() for i in range(N)]
         else:  # fine_tuning_stage phase, cost is increasing: best is previous
             plural = "s" if best_machines > 1 else ""
             print(
-                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machine{plural}, with a cost per hour of {best_cost}"
+                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machine{plural}, with a cost per hour of {best_cost_current_vmtype}"
             )
             print("-" * 80)
-            new_result = mt, prev_m, best_cost
-            costs_per_type.append(new_result)
-            target_items_per_type.append(
-                [abs(a - b) for a, b in zip(old_placement, best_placement)]
-            )
+            new_result = prev_m, best_cost_current_vmtype
+            costs_per_type[mt] = new_result
+            # target_items_per_type.append(
+            #     [abs(a - b) for a, b in zip(old_placement, best_placement)]
+            # )
+
             break
 
 t1 = time()
 print("FINAL RESULTS:")
-for mt, n, cost in costs_per_type:
-    print(f"{vm_types[mt]}: {n} machines --> {cost:.3f} € per hour")
-
-best_cost = inf
-for (mt, number, cost) in costs_per_type:
-    if cost < best_cost:
-        best_cost = cost
+# mt, n, cost
+best = inf
+for mt in costs_per_type:
+    cost = costs_per_type[mt][1]
+    number = costs_per_type[mt][0]
+    print(f"{vm_types[mt]}: {number} machines --> {cost:.3f} € per hour")
+    if cost < best:
+        best = cost
         best_option = (mt, number, cost)
 
 print(
