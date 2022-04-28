@@ -1,5 +1,5 @@
 from cmath import inf
-from math import dist
+from math import ceil, dist
 from uuid import uuid4
 import pulp as pulp
 from pulp import constants
@@ -20,9 +20,12 @@ from functools import partial
 
 print = partial(print, flush=True)
 
-cost_write = params.COST_WRITE_UNIT
-cost_read = params.COST_READ_UNIT
-cost_storage = params.COST_STORAGE
+cost_write = params.COST_DYNAMO_WRITE_UNIT
+cost_read = params.COST_DYNAMO_READ_UNIT
+cost_storage = params.COST_DYNAMO_STORAGE
+cost_volume_storage = params.COST_VOLUME_STORAGE  # per hour
+cost_volume_iops = params.COST_VOLUME_IOPS
+cost_volume_tp = params.COST_VOLUME_THROUGHPUT
 vm_types = params.vm_types
 vm_IOPS = params.vm_IOPS
 vm_costs = params.vm_costs
@@ -110,8 +113,8 @@ def generate_items(distribution, scale=1.0):
         # uniform distribution
         # max size for DynamoDB is 400KB
         s = list((400 - 1) * np.random.rand(N) + 1)  # size in Bytes
-        t_r = np.random.randint(1, 500 * scale, N)
-        t_w = np.random.randint(1, 500 * scale, N)
+        t_r = np.random.rand(N) * 500 * scale
+        t_w = np.random.rand(N) * 500 * scale
 
     # sizes are IBM, throughputs are YCSB
     elif distribution == "custom":
@@ -119,7 +122,7 @@ def generate_items(distribution, scale=1.0):
         t_r = gather_stats_ycsb("r", scale)
         t_w = gather_stats_ycsb("w", scale)
 
-    print(f"Size of s: {len(s)}, max(s)={max(s)}, min(s)={min(s)}")
+    print(f"Number of items: {len(s)}, max_size={max(s)}, min_size={min(s)}")
     print(f"Throughputs scale: {scale}")
     print(f"Size of t_r: {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}")
     print(f"Size of t_w: {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}")
@@ -193,9 +196,14 @@ threading.Thread(target=notify(message=message)).start()
 
 best_overall = inf
 
+significant_vm_types = [3, 4, 5, 9, 10, 11, 12]
+
 for mt in range(13):
-    m = 0  # we will start from RF in the future
-    machine_step = 10
+    if total_size < 3 * params.MAX_SIZE:
+        m = 3
+    else:
+        m = ceil(total_size / params.MAX_SIZE)  # we will start from RF in the future
+    machine_step = 5
     fine_tuning_stage = False  # whether we are in the binary search phase or not
     prev_cost = inf
     while True:
@@ -205,19 +213,28 @@ for mt in range(13):
 
         # objective function
         problem += (
-            # Dynamo
+            # Dynamo static cost
             lpSum([(1 - x[i]) * s[i] for i in range(N)]) * cost_storage
-            + lpSum(
-                [
-                    (1 - x[i]) * (s[i] / 8) * t_r[i] * 60 * 60 * cost_read
-                    for i in range(N)
-                ]
-            )
-            + lpSum(
-                [(1 - x[i]) * s[i] * t_w[i] * 60 * 60 * cost_write for i in range(N)]
-            )
-            # Cassandra
-            + m * vm_costs[mt],
+            # Dynamo accesses cost
+            + lpSum([(1 - x[i]) * t_r[i] * (s[i] / 8) for i in range(N)])
+            * 60
+            * 60
+            * cost_read
+            + lpSum([(1 - x[i]) * s[i] * t_w[i] for i in range(N)])
+            * 60
+            * 60
+            * cost_write
+            # Cassandra VMs cost
+            + m * vm_costs[mt]
+            # Cassandra volumes baseline charge
+            + lpSum(x[i] * s[i] for i in range(N)) * cost_volume_storage
+            # Cassandra volumes IOPS charge
+            + lpSum(x[i] * (t_r[i] + t_w[i]) for i in range(N))
+            * 60
+            * 60
+            * cost_volume_iops
+            # Cassandra volumes performance charge
+            + lpSum(x[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N)) * cost_volume_tp,
             "Minimization of the total cost of the hybrid solution",
         )
 
@@ -249,7 +266,20 @@ for mt in range(13):
         print(f"Cost of Dynamo (1 hour) = {cost_dynamo:.3f}")
 
         # cost of Cassandra
-        cost_cassandra = m * vm_costs[mt]
+        cost_cassandra = (
+            m * vm_costs[mt]
+            # Cassandra volumes baseline charge
+            + sum(x[i].value() * s[i] for i in range(N)) * cost_volume_storage
+            # Cassandra volumes IOPS charge
+            + sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
+            * 60
+            * 60
+            * cost_volume_iops
+            # Cassandra volumes performance charge
+            + sum(x[i].value() * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+            * cost_volume_tp
+        )
+
         print(f"Cost of Cassandra (1 hour) = {cost_cassandra:.3f}")
 
         items_cassandra = sum(x[i].value() for i in range(N))
@@ -259,11 +289,11 @@ for mt in range(13):
         print(
             f"Number of items on Cassandra :{items_cassandra}, items on Dynamo: {int(items_dynamo)}"
         )
-        print(f"Percentage of items on Cassandra: {items_cassandra/N:.2f}%")
-        print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2f}%")
+        print(f"Percentage of items on Cassandra: {items_cassandra/N*100:.2f}%")
+        print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops*100:.2f}%")
         size_cassandra = sum((x[i].value()) * s[i] for i in range(N))
         print(
-            f"Amount of data on Cassandra: {size_cassandra/2**10:.2f}/{total_size/2**10:.2f} [MB] ({size_cassandra/total_size:.2f}%)"
+            f"Amount of data on Cassandra: {size_cassandra/2**10:.3f}/{total_size/2**10:.3f} [MB] ({size_cassandra/total_size*100:.3f}%)"
         )
 
         total_cost = cost_dynamo + cost_cassandra
@@ -296,7 +326,7 @@ for mt in range(13):
         else:  # fine_tuning_stage phase, cost is increasing: best is previous
             plural = "s" if best_machines > 1 else ""
             print(
-                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machine{plural}, with a cost per hour of {best_cost_current_vmtype}"
+                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machine{plural}, with a cost per hour of {best_cost_current_vmtype:.2f}"
             )
             print("-" * 80)
             new_result = prev_m, best_cost_current_vmtype

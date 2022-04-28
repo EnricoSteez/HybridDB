@@ -8,9 +8,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -20,25 +20,25 @@ public class Client {
     private final InitializationGrpc.InitializationBlockingStub initializationBlockingStub;
     private final int localPort;
     private static final long initTime = System.currentTimeMillis();
-    private Server server;
+    private Server localPlutusServer;
     private static final Logger logger = Logger.getLogger(Client.class.getName());
 
 
 
     public Client (ManagedChannel channel, int localPort){
         initializationBlockingStub = InitializationGrpc.newBlockingStub(channel);
-        items = new HashMap<>();
+        items = new ConcurrentHashMap<>();
         this.localPort = localPort;
     }
 
     private void start() throws IOException {
         /* The port on which the server should run */
         int port = 50051;
-        server = ServerBuilder.forPort(port)
+        localPlutusServer = ServerBuilder.forPort(port)
                 .addService(new Coordination())
                 .build()
                 .start();
-        logger.info("Server started, listening on " + port);
+        logger.info("Local Plutus hook process started, listening on " + port);
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
@@ -55,8 +55,8 @@ public class Client {
     }
 
     private void stop() throws InterruptedException {
-        if (server != null) {
-            server.shutdown().awaitTermination(30, TimeUnit.SECONDS);
+        if (localPlutusServer != null) {
+            localPlutusServer.shutdown().awaitTermination(30, TimeUnit.SECONDS);
         }
     }
 
@@ -64,17 +64,18 @@ public class Client {
      * Await termination on the main thread since the grpc library uses daemon threads.
      */
     private void blockUntilShutdown() throws InterruptedException {
-        if (server != null) {
-            server.awaitTermination();
+        if (localPlutusServer != null) {
+            localPlutusServer.awaitTermination();
         }
     }
 
 
     private boolean registerClient() {
-        InitializationServices.RegisterRequest request =
+        logger.info("Client registering at the server for the first time, awaiting response");
+        ClientToPlutusInit.RegisterRequest request =
                 null;
         try {
-            request = InitializationServices.RegisterRequest
+            request = ClientToPlutusInit.RegisterRequest
                     .newBuilder()
                     .setIp(InetAddress.getLocalHost().getHostAddress())
                     .setPort(localPort)
@@ -82,7 +83,10 @@ public class Client {
         } catch (UnknownHostException e) {
             e.printStackTrace();
         }
-        InitializationServices.RegisterReply reply = initializationBlockingStub.registerClient(request);
+        ClientToPlutusInit.RegisterReply reply = initializationBlockingStub.registerClient(request);
+        logger.info("Client registering at the server for the first time response = " + reply.getOk());
+        assert request != null;
+        System.out.println("Client registered at the server! IP=" + request.getIp() + ":");
         return reply.getOk();
     }
 
@@ -91,12 +95,12 @@ public class Client {
         String serverIP = "localhost";
         int serverPort = 50051;
         if(args.length != 0 && args.length != 3) {
-            System.err.println("Usage: LocalPort ServerIP ServerPort");
+            System.err.println("Usage: Client <LocalPort> <ServerIP> <ServerPort>");
             System.exit(1);
         }
 
         if(args.length==3) {
-            if (!isIp(args[1])) throw new IllegalArgumentException("IP is not valid");
+//            if (!isIp(args[1])) throw new IllegalArgumentException("IP is not valid");
             serverIP = args[1];
             try {
                 localPort = Integer.parseInt(args[0]);
@@ -112,9 +116,12 @@ public class Client {
                 .build();
         try {
             Client client=new Client(channel, localPort);
+            // call registration method on the server blocking stub dedicated to the initialization services
             boolean ok = client.registerClient();
             if(!ok) throw new RuntimeException("Cannot register client");
             new Thread(new ClientBehaviour()).start();
+            //start the client's "server" module, listening to server push actions
+            //this part of the code does not include any user interaction
             client.start();
             client.blockUntilShutdown();
 
@@ -164,17 +171,16 @@ public class Client {
 
     static class Coordination extends CoordinationMethodsGrpc.CoordinationMethodsImplBase {
         @Override
-        public void gatherThroughputs (CoordinationServices.GatherThroughputsRequest request, StreamObserver<CoordinationServices.GatherThroughputsReply> responseObserver) {
-//            super.gatherThroughputs(request, responseObserver);
+        public void gatherThroughputs (PlutusToClients.GatherThroughputsRequest request, StreamObserver<PlutusToClients.GatherThroughputsReply> responseObserver) {
             long evaluationPeriod = System.currentTimeMillis() - initTime;
             // FOR EVERY ITEM, MAP IT TO a Throughput(protobuf) object with same id and value: (reads+writes)/evalTime
-            CoordinationServices.GatherThroughputsReply reply =
-                    CoordinationServices.GatherThroughputsReply.newBuilder()
+            PlutusToClients.GatherThroughputsReply reply =
+                    PlutusToClients.GatherThroughputsReply.newBuilder()
                             .addAllThroughputs(
                                     items
                                             .values()
                                             .stream()
-                                            .map(item -> CoordinationServices.Throughput.newBuilder()
+                                            .map(item -> PlutusToClients.Throughput.newBuilder()
                                                     .setId(item.getId())
                                                     .setThroughput((item.getCountReads()+ item.getCountWrites())/evaluationPeriod)
                                                     .build())
@@ -185,7 +191,7 @@ public class Client {
         }
 
         @Override
-        public void freeze (CoordinationServices.FreezeRequest request, StreamObserver<CoordinationServices.FreezeReply> responseObserver) {
+        public void freeze (PlutusToClients.FreezeRequest request, StreamObserver<PlutusToClients.FreezeReply> responseObserver) {
 //            super.freeze(request, responseObserver);
             List<String> keys = request.getKeysList();
             List<String> notFound = new ArrayList<>();
@@ -195,7 +201,7 @@ public class Client {
                 items.get(key).freeze();
             }
 
-            CoordinationServices.FreezeReply reply = CoordinationServices.FreezeReply.newBuilder()
+            PlutusToClients.FreezeReply reply = PlutusToClients.FreezeReply.newBuilder()
                     .addAllNotFound(notFound)
                     .build();
             responseObserver.onNext(reply);
@@ -203,10 +209,10 @@ public class Client {
         }
 
         @Override
-        public void unfreeze (CoordinationServices.UnfreezeRequest request, StreamObserver<CoordinationServices.UnfreezeReply> responseObserver) {
+        public void unfreeze (PlutusToClients.UnfreezeRequest request, StreamObserver<PlutusToClients.UnfreezeReply> responseObserver) {
 //            super.unfreeze(request, responseObserver);
-            List<CoordinationServices.ItemPlacement> placements = request.getNewPlacementList();
-            for(CoordinationServices.ItemPlacement placement : placements) {
+            List<PlutusToClients.ItemPlacement> placements = request.getNewPlacementList();
+            for(PlutusToClients.ItemPlacement placement : placements) {
                 String id = placement.getId();
                 int whichBackend = placement.getPlacement();
                 items.get(id).setPlacement(whichBackend);

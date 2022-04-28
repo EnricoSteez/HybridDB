@@ -83,21 +83,27 @@ public class PlutusServer {
         server.blockUntilShutdown();
 
         //TODO LAUNCH THIS PERIODICALLY, INSTEAD of only once
+        System.out.println("Optimization should start hereafter... ");
         new Thread(new Optimizer(clients,currentPlacement,databaseController)).start();
     }
 
     static class Initialization extends InitializationGrpc.InitializationImplBase {
         @Override
-        public void registerClient (InitializationServices.RegisterRequest request, StreamObserver<InitializationServices.RegisterReply> responseObserver) {
-//            super.registerClient(request, responseObserver);
+        public void registerClient (ClientToPlutusInit.RegisterRequest request, StreamObserver<ClientToPlutusInit.RegisterReply> responseObserver) {
             String ip = request.getIp();
             int port = request.getPort();
             String target = ip + ":" + port;
+            System.out.println("Registering client :"+target);
+
             ManagedChannel channel = ManagedChannelBuilder
                     .forTarget(target)
                     .usePlaintext()
                     .build();
             clients.put(target,CoordinationMethodsGrpc.newStub(channel));
+//            new Thread(new UserInteraction()).start();
+            ClientToPlutusInit.RegisterReply reply = ClientToPlutusInit.RegisterReply.newBuilder().setOk(true).build();
+            responseObserver.onNext(reply);
+            responseObserver.onCompleted();
         }
     }
 }

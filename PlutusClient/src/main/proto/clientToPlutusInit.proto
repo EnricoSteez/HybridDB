@@ -1,0 +1,23 @@
+syntax = "proto3";
+//services called by the clients at the PlutusServer for initializing stuff
+
+service Initialization {
+  rpc RegisterClient (RegisterRequest) returns (RegisterReply) {}
+  rpc sayHello(HelloRequest) returns (HelloReply) {}
+}
+
+message RegisterRequest {
+  string ip = 1;
+  int32 port = 2;
+}
+
+message RegisterReply {
+  bool ok = 1;
+}
+
+message HelloRequest {
+  string message = 1;
+}
+message HelloReply {
+  string message = 1;
+}

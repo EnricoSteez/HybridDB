@@ -6,20 +6,19 @@ import com.datastax.oss.driver.api.core.session.Session;
 
 public class DatabaseController {
 
-    private static DynamoDB dynamoDB;
+//    private static DynamoDB dynamoDB;
 //    private Cluster cluster;
-    private Session session;
-
-    public DatabaseController () {
-        AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
-                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://localhost:8000", "us-west-2"))
-                .build();
-
-        dynamoDB = new DynamoDB(client);
-    }
-
+//    private Session session;
+//
+//    public DatabaseController () {
+//        AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
+//                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://localhost:8000", "us-west-2"))
+//                .build();
+//
+//        dynamoDB = new DynamoDB(client);
+//    }
+//
 //    public void connectToCassandra(String node, Integer port) {
-//        Cluster c;
 //        Cluster.Builder b = Cluster.builder().addContactPoint(node);
 //        if (port != null) {
 //            b.withPort(port);

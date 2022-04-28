@@ -1,4 +1,5 @@
 syntax = "proto3";
+//services called by the PlutusServer, asking for operations on all the clients
 
 service CoordinationMethods {
   rpc GatherThroughputs (GatherThroughputsRequest) returns (GatherThroughputsReply) {}

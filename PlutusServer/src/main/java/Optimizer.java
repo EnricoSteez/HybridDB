@@ -21,14 +21,14 @@ public record Optimizer(
     @Override
     public void run () {
         clients.forEach((target, stub) -> {
-            CoordinationServices.GatherThroughputsRequest req =
-                    CoordinationServices.GatherThroughputsRequest
+            PlutusToClients.GatherThroughputsRequest req =
+                    PlutusToClients.GatherThroughputsRequest
                             .newBuilder()
                             .build();
             // DEFINITION OF THE BEHAVIOUR WHEN CLIENT RESPONSES WILL ARRIVE
-            StreamObserver<CoordinationServices.GatherThroughputsReply> gatherThroughputsStreamObserver = new StreamObserver<CoordinationServices.GatherThroughputsReply>() {
+            StreamObserver<PlutusToClients.GatherThroughputsReply> gatherThroughputsStreamObserver = new StreamObserver<PlutusToClients.GatherThroughputsReply>() {
                 @Override
-                public void onNext (CoordinationServices.GatherThroughputsReply gatherThroughputsReply) {
+                public void onNext (PlutusToClients.GatherThroughputsReply gatherThroughputsReply) {
                     System.out.println("Reply from client.");
                     gatherThroughputsReply.getThroughputsList().forEach((throughput -> {
                         String id = throughput.getId();
@@ -56,9 +56,9 @@ public record Optimizer(
             Map<String, Integer> newPlacement = optimizePlacement(throughputs);
             Map<String,Integer> itemsToMove = comparePlacements(currentPlacement,newPlacement);
 
-            StreamObserver<CoordinationServices.FreezeReply> freezeReplyStreamObserver = new StreamObserver<CoordinationServices.FreezeReply>() {
+            StreamObserver<PlutusToClients.FreezeReply> freezeReplyStreamObserver = new StreamObserver<PlutusToClients.FreezeReply>() {
                 @Override
-                public void onNext (CoordinationServices.FreezeReply freezeReply) {
+                public void onNext (PlutusToClients.FreezeReply freezeReply) {
                     freezeReply.getNotFoundList().forEach(id -> {
                         throughputs.remove(id);
                         System.out.println("Removed item " + id + " since it has been deleted from the DB in the meantime...");
@@ -75,7 +75,7 @@ public record Optimizer(
                     System.out.println("Finished Freezing items, now I'll replace items between databases!");
                 }
             };
-            CoordinationServices.FreezeRequest freezeRequest = CoordinationServices.FreezeRequest.newBuilder()
+            PlutusToClients.FreezeRequest freezeRequest = PlutusToClients.FreezeRequest.newBuilder()
                     .addAllKeys(itemsToMove.keySet())
                     .build();
 
@@ -89,21 +89,21 @@ public record Optimizer(
                 //TODO
             }
 
-            CoordinationServices.UnfreezeRequest unfreezeRequest = CoordinationServices.UnfreezeRequest.newBuilder()
+            PlutusToClients.UnfreezeRequest unfreezeRequest = PlutusToClients.UnfreezeRequest.newBuilder()
                     .addAllNewPlacement(newPlacement
                             .entrySet()
                             .stream()
                             .sequential()
-                            .map(item -> CoordinationServices.ItemPlacement.newBuilder()
+                            .map(item -> PlutusToClients.ItemPlacement.newBuilder()
                                     .setId(item.getKey())
                                     .setPlacement(item.getValue())
                                     .build())
                             .collect(Collectors.toCollection(ArrayList::new)))
                     .build();
 
-            StreamObserver<CoordinationServices.UnfreezeReply> unfreezeReplyStreamObserver = new StreamObserver<CoordinationServices.UnfreezeReply>() {
+            StreamObserver<PlutusToClients.UnfreezeReply> unfreezeReplyStreamObserver = new StreamObserver<PlutusToClients.UnfreezeReply>() {
                 @Override
-                public void onNext (CoordinationServices.UnfreezeReply unfreezeReply) {
+                public void onNext (PlutusToClients.UnfreezeReply unfreezeReply) {
                     if(unfreezeReply.getDone())
                         System.out.println("Client unfroze set");
                     else {

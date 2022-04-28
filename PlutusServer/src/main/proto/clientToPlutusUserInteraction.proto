@@ -1,0 +1,27 @@
+syntax = "proto3";
+//services called by the clients at the PlutusServer for initializing stuff
+
+service UserInteraction {
+  rpc readItem(readRequest) returns (readReply) {}
+  rpc writeItem(writeRequest) returns (writeReply) {}
+}
+
+
+message readRequest {
+  string itemId = 1;
+}
+
+message readReply {
+  string itemId = 1;
+  bytes value = 2;
+}
+
+message writeRequest {
+  string itemId = 1;
+  bytes newValue = 2;
+}
+
+message writeReply {
+  string itemId = 1;
+  bool success = 2;
+}

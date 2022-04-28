@@ -2,6 +2,11 @@
 <project version="4">
   <component name="RemoteRepositoriesConfiguration">
     <remote-repository>
+      <option name="id" value="dynamodb-local-frankfurt" />
+      <option name="name" value="DynamoDB Local Release Repository" />
+      <option name="url" value="https://s3.eu-central-1.amazonaws.com/dynamodb-local-frankfurt/release" />
+    </remote-repository>
+    <remote-repository>
       <option name="id" value="central" />
       <option name="name" value="Central Repository" />
       <option name="url" value="https://repo.maven.apache.org/maven2" />
