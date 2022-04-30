@@ -10,7 +10,8 @@ message GatherThroughputsRequest {
 }
 
 message GatherThroughputsReply {
-  repeated Throughput throughputs = 2;
+  repeated Throughput throughputsWrite = 1;
+  repeated Throughput throughputsRead = 2;
 }
 
 message Throughput {

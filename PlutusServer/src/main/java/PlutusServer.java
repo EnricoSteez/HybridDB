@@ -83,8 +83,8 @@ public class PlutusServer {
         server.blockUntilShutdown();
 
         //TODO LAUNCH THIS PERIODICALLY, INSTEAD of only once
-        System.out.println("Optimization should start hereafter... ");
-        new Thread(new Optimizer(clients,currentPlacement,databaseController)).start();
+        System.out.println("Optimization starting hereafter... ");
+//        new Thread(new Optimizer(clients,currentPlacement,databaseController)).start();
     }
 
     static class Initialization extends InitializationGrpc.InitializationImplBase {
@@ -99,7 +99,7 @@ public class PlutusServer {
                     .forTarget(target)
                     .usePlaintext()
                     .build();
-            clients.put(target,CoordinationMethodsGrpc.newStub(channel));
+            clients.putIfAbsent(target,CoordinationMethodsGrpc.newStub(channel));
 //            new Thread(new UserInteraction()).start();
             ClientToPlutusInit.RegisterReply reply = ClientToPlutusInit.RegisterReply.newBuilder().setOk(true).build();
             responseObserver.onNext(reply);

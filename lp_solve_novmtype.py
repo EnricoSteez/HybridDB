@@ -41,35 +41,44 @@ def notify(message):
     bot.sendMessage(chat_id=chat_id, text=message)
 
 
-def gather_stats_ycsb(which: str, scale: float) -> list:
-    throughputs = []
-    if which == "r":
-        filename = "readStats.txt"
-    elif which == "w":
-        filename = "writeStats.txt"
+def gather_throughputs(filename: str, scale: float) -> list:
 
-    print(f'Gathering ycsb throughputs mode="{which}" scale={scale}')
+    print(f'Gathering ycsb throughputs from file ""{filename}"" scale={scale}')
 
-    with open(filename, mode="r") as file:
-        i = 0
-        while i < N:
-            line = file.readline()
-            if not re.match("user[0-9]+ [0-9]+", line) and line != "\n":
-                print(f"Found errors in throughputs in line {line}")
+    if filename == "readStats.txt" or filename == "writeStats.txt":
+        throughputs = []
+        with open(filename, mode="r") as file:
+            i = 0
+            while i < N:
+                line = file.readline()
+                if not re.match("user[0-9]+ [0-9]+", line) and line != "\n":
+                    print(f"Found errors in throughputs in line {line}")
+                    i += 1
+                    continue
+
+                tp = int(line.split()[1]) * scale  # kv[0]=key, kv[1]=value
+
+                throughputs.append(tp)
                 i += 1
-                continue
 
-            tp = int(line.split()[1]) * scale  # kv[0]=key, kv[1]=value
+        # while len(throughputs) < N:
+        #     print(f"Appending one zero to throughputs t_{which}")
+        #     throughputs.append(0)
 
-            throughputs.append(tp)
-            i += 1
-
-        while len(throughputs) < N:
-            print(f"Appending one zero to throughputs t_{which}")
-            throughputs.append(0)
-
-    # print(f"Returning throughputs mode->{which}")
-    return throughputs
+        # print(f"Returning throughputs mode->{which}")
+        return throughputs
+    elif filename == "throughputs.txt":
+        tr = []
+        tw = []
+        with open(filename, mode="r") as file:
+            i = 0
+            while i < N:
+                line = file.readline()
+                # line[0]=key, line[1]=tp_read, line[2]=tp_write
+                tr.append = int(line.split()[1]) * scale
+                tw.append = int(line.split()[2]) * scale
+                i += 1
+        return tr, tw
 
 
 def gather_sizes_ibm():
@@ -106,8 +115,8 @@ def generate_items(distribution, scale=1.0):
     # custom: sizes from ibm traces, throughputs from YCSB
     if distribution == "ycsb":
         s = [100] * N
-        t_r = gather_stats_ycsb("r", scale)
-        t_w = gather_stats_ycsb("w", scale)
+        t_r = gather_throughputs("readStats.txt", scale)
+        t_w = gather_throughputs("writeStats.txt", scale)
 
     elif distribution == "uniform":
         # uniform distribution
@@ -119,8 +128,12 @@ def generate_items(distribution, scale=1.0):
     # sizes are IBM, throughputs are YCSB
     elif distribution == "custom":
         s = gather_sizes_ibm()
-        t_r = gather_stats_ycsb("r", scale)
-        t_w = gather_stats_ycsb("w", scale)
+        t_r = gather_throughputs("readStats.txt", scale)
+        t_w = gather_throughputs("writeStats.txt", scale)
+
+    elif distribution == "java":
+        s = gather_sizes_ibm()
+        t_r, t_w = gather_throughputs("throughputs.txt", scale)
 
     print(f"Number of items: {len(s)}, max_size={max(s)}, min_size={min(s)}")
     print(f"Throughputs scale: {scale}")
@@ -136,9 +149,9 @@ def generate_items(distribution, scale=1.0):
     return s, t_r, t_w
 
 
-if len(sys.argv) < 3 or len(sys.argv) > 5:
+if len(sys.argv) < 3 or len(sys.argv) > 4:
     sys.exit(
-        f"Usage: python3 {path.basename(__file__)} <N> <uniform|ycsb|custom> [TPscaling]"
+        f"Usage: python3 {path.basename(__file__)} <N> <uniform|ycsb|custom|java> [TP_scale_factor]"
     )
 try:
     N = int(sys.argv[1])
@@ -196,14 +209,12 @@ threading.Thread(target=notify(message=message)).start()
 
 best_overall = inf
 
-significant_vm_types = [3, 4, 5, 9, 10, 11, 12]
-
 for mt in range(13):
     if total_size < 3 * params.MAX_SIZE:
         m = 3
     else:
         m = ceil(total_size / params.MAX_SIZE)  # we will start from RF in the future
-    machine_step = 5
+    machine_step = 2
     fine_tuning_stage = False  # whether we are in the binary search phase or not
     prev_cost = inf
     while True:
@@ -323,18 +334,15 @@ for mt in range(13):
             best_cost_current_vmtype = total_cost
             prev_cost = total_cost
             best_placement = [x[i].value() for i in range(N)]
+
         else:  # fine_tuning_stage phase, cost is increasing: best is previous
-            plural = "s" if best_machines > 1 else ""
+
             print(
-                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machine{plural}, with a cost per hour of {best_cost_current_vmtype:.2f}"
+                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost per hour of {best_cost_current_vmtype:.2f}"
             )
             print("-" * 80)
             new_result = prev_m, best_cost_current_vmtype
             costs_per_type[mt] = new_result
-            # target_items_per_type.append(
-            #     [abs(a - b) for a, b in zip(old_placement, best_placement)]
-            # )
-
             break
 
 t1 = time()
@@ -364,6 +372,30 @@ print(
     f"Cost saving compared to using only DynamoDB: {cost_dynamo-best_option[2]:.2f} € / h"
 )
 
+best = inf
+for i in range(len(vm_types)):
+    num_vm = ceil(max(total_size / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[i]))
+
+    if num_vm < 3:
+        num_vm = 3
+    cost = (
+        num_vm * vm_costs[i]
+        + total_size * cost_volume_storage
+        + (sum(t_r) + sum(t_w)) * 60 * 60 * cost_volume_iops
+        + (sum(t_r) + sum(t_w)) * total_size * cost_volume_tp
+    )
+    if cost < best:
+        best = cost
+        best_vm = i
+        best_n = num_vm
+
+print(
+    f"Cost of only CASSANDRA: {best:.2f}€/h, "
+    f"achieved with {best_n} machines "
+    f"of type {vm_types[best_vm]}"
+)
+
+
 tot_time = t1 - t0
 print(f"Took {tot_time} seconds ")
 if t1 - t0 > 60:
@@ -380,4 +412,7 @@ message = (
     'See "results.txt" for more info'
 )
 threading.Thread(target=notify(message=message)).start()
-# notify(message=message)
+
+with open("placement", "wb") as file:
+    for num in best_placement:
+        file.write(bytes([int(num)]))
