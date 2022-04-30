@@ -20,7 +20,7 @@ message Throughput {
 }
 
 message FreezeRequest {
-  repeated string keys = 1;
+  repeated ItemPlacement itemPlacements = 1;
 }
 
 message FreezeReply {

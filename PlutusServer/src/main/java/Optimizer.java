@@ -6,14 +6,14 @@ import java.util.stream.Collectors;
 
 public record Optimizer(
         Map<String, CoordinationMethodsGrpc.CoordinationMethodsStub> clients,
-        Map<String, Integer> currentPlacement,
+        SortedMap<String, Integer> currentPlacement,
         DatabaseController controller) implements Runnable {
 
     private static SortedMap<String, Long> throughputsRead;
     private static SortedMap<String, Long> throughputsWrite;
 
-
-    public Optimizer (Map<String, CoordinationMethodsGrpc.CoordinationMethodsStub> clients, Map<String, Integer> currentPlacement, DatabaseController controller) {
+    public Optimizer (Map<String, CoordinationMethodsGrpc.CoordinationMethodsStub> clients,
+                      SortedMap<String, Integer> currentPlacement, DatabaseController controller) {
         this.clients = clients;
         // SORTED BY KEY FOR BETTER HANDLING.
         // THREADSAFE FOR THE COLLECTION PROCEDURE
@@ -62,16 +62,19 @@ public record Optimizer(
             // ACTUAL CALL TO CLIENTS ASKING FOR THROUGHPUTS
             stub.gatherThroughputs(req, gatherThroughputsStreamObserver);
 
-            //here all throughputs should be gathered
-
-            //RUN OPTIMIZER
-            Map<String, Integer> newPlacement = null;
+            SortedMap<String, Integer> newPlacement = null;
             try {
                 newPlacement = optimizePlacement(throughputsRead, throughputsWrite);
             } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             }
-            Map<String, Integer> itemsToMove = comparePlacements(currentPlacement, newPlacement);
+
+            assert newPlacement != null;
+            Map<String, Integer> itemsToMove = newPlacement
+                    .entrySet()
+                    .stream()
+                    .filter(entry -> !Objects.equals(entry.getValue(), currentPlacement.get(entry.getKey())))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             StreamObserver<PlutusToClients.FreezeReply> freezeReplyStreamObserver = new StreamObserver<>() {
                 @Override
@@ -93,15 +96,23 @@ public record Optimizer(
                 }
             };
             PlutusToClients.FreezeRequest freezeRequest = PlutusToClients.FreezeRequest.newBuilder()
-                    .addAllKeys(itemsToMove.keySet())
+                    .addAllItemPlacements(
+                            itemsToMove
+                                    .entrySet()
+                                    .stream()
+                                    .map(item -> PlutusToClients.ItemPlacement.newBuilder()
+                                            .setId(item.getKey())
+                                            .setPlacement(item.getValue())
+                                            .build())
+                                    .collect(Collectors.toCollection(HashSet::new))
+                    )
                     .build();
 
             //TELL CLIENTS TO FREEZE CRITICAL ITEMS TO BE MOVED
             stub.freeze(freezeRequest, freezeReplyStreamObserver);
-
-            //AT THIS POINT THE CLIENTS SHOULD QUEUE ALL REQUESTS TARGETING KEYS IN THE FREEZE SET
-
+            //AT THIS POINT THE CLIENTS SHOULD QUEUE ALL WRITE REQUESTS TARGETING KEYS IN THE FREEZE SET
             Set<String> fails = moveData(itemsToMove);
+
             if (!fails.isEmpty()) {
                 //TODO
             }
@@ -118,7 +129,7 @@ public record Optimizer(
                             .collect(Collectors.toCollection(ArrayList::new)))
                     .build();
 
-            StreamObserver<PlutusToClients.UnfreezeReply> unfreezeReplyStreamObserver = new StreamObserver<PlutusToClients.UnfreezeReply>() {
+            StreamObserver<PlutusToClients.UnfreezeReply> unfreezeReplyStreamObserver = new StreamObserver<>() {
                 @Override
                 public void onNext (PlutusToClients.UnfreezeReply unfreezeReply) {
                     if (unfreezeReply.getDone())
@@ -146,17 +157,20 @@ public record Optimizer(
         });
     }
 
-    private Map<String, Integer> comparePlacements (Map<String, Integer> currentPlacement, Map<String, Integer> newPlacement) {
-        Map<String, Integer> itemsThatChanged = new HashMap<>();
-        for (Map.Entry<String, Integer> item : currentPlacement.entrySet()) {
-            if (!Objects.equals(currentPlacement.get(item.getKey()), newPlacement.get(item.getKey())))
-                itemsThatChanged.put(item.getKey(), item.getValue());
-        }
-        return itemsThatChanged;
-    }
-
     private Set<String> moveData (Map<String, Integer> items) {
-        //TODO implement data transfer with Controller class
+        for (Map.Entry<String, Integer> item : items.entrySet()) {
+            if (item.getValue() == 1) { //DESTINATION: CASSANDRA
+                //READ FROM DYNAMO
+                byte[] data = controller.readDynamo(item.getKey());
+                //WRITE ON CASSANDRA
+                controller.writeCassandra(item.getKey(), data);
+            } else { //DESTINATION: DYNAMO
+                //READ FROM CASSANDRA
+                byte[] data = controller.readCassandra(item.getKey());
+                //WRITE ON DYNAMO
+                controller.writeDynamo(item.getKey(), data);
+            }
+        }
         return null;
     }
 
@@ -164,11 +178,11 @@ public record Optimizer(
         //TODO INVOKE DATA TRANSFER ON SINGLE ITEMS (CONTROLLER)
     }
 
-    private Map<String, Integer> optimizePlacement (Map<String, Long> throughputsRead, Map<String, Long> throughputsWrite)
+    private SortedMap<String, Integer> optimizePlacement (Map<String, Long> throughputsRead, Map<String, Long> throughputsWrite)
             throws IOException, InterruptedException {
-        Map<String, Integer> newPlacement = new HashMap<>();
+        SortedMap<String, Integer> newPlacement = Collections.synchronizedSortedMap(new TreeMap<>());
         try (
-                BufferedWriter writer = new BufferedWriter(new FileWriter("throughputs.txt")) ;
+                BufferedWriter writer = new BufferedWriter(new FileWriter("throughputs.txt"))
         ) {
             for (String tp : throughputsRead.keySet())
                 writer.write(tp + " " + throughputsRead.get(tp) + " " + throughputsWrite.getOrDefault(tp, 0L));
@@ -180,17 +194,21 @@ public record Optimizer(
         Process process = builder.start();
         process.waitFor();
         try (
-                InputStream inputStream = new FileInputStream("placement") ;
+                InputStream inputStream = new FileInputStream("placement")
         ) {
-            int byteRead = -1;
-            while ((byteRead = inputStream.read()) != -1) {
-                
+            int byteRead;
+            for (String key : throughputsRead.keySet()) {
+                if ((byteRead = inputStream.read()) != -1)
+                    newPlacement.put(key, byteRead);
+                else // this is just for safety in case something goes wrong
+                    //we just put the item on Dynamo so that no size/IOPS constraints are violated
+                    //worst casse we pay a little bit more
+                    newPlacement.put(key, 0);
             }
 
         } catch (IOException ex) {
             ex.printStackTrace();
         }
-        //CALL PYTHON OPTIMIZER HERE
         return newPlacement;
     }
 }

@@ -38,24 +38,22 @@ public class DatabaseController {
 //        cluster.close();
 //    }
 
-    public byte[] readDynamo(){
+    public byte[] readDynamo(String id){
         return null;
     }
 
-    public boolean writeDynamo(String id, byte[] newValue){
-        return false;
+    public void writeDynamo(String id, byte[] newValue){
     }
 
     public boolean deleteDynamo(String id){
         return false;
     }
 
-    public byte[] readCassandra(){
+    public byte[] readCassandra (String key){
         return null;
     }
 
-    public boolean writeCassandra(String id, byte[] newValue){
-        return false;
+    public void writeCassandra(String id, byte[] newValue){
     }
 
     public boolean deleteCassandra(String id){
