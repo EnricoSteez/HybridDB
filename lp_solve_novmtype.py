@@ -1,5 +1,5 @@
 from cmath import inf
-from math import ceil, dist
+from math import ceil
 from uuid import uuid4
 import pulp as pulp
 from pulp import constants
@@ -15,8 +15,10 @@ import re
 import json
 import telegram
 from os import path
+from os import system
 import threading
 from functools import partial
+
 
 print = partial(print, flush=True)
 
@@ -43,7 +45,7 @@ def notify(message):
 
 def gather_throughputs(filename: str, scale: float) -> list:
 
-    print(f'Gathering ycsb throughputs from file ""{filename}"" scale={scale}')
+    print(f'Gathering ycsb throughputs from file "{filename}" scale={scale}')
 
     if filename == "readStats.txt" or filename == "writeStats.txt":
         throughputs = []
@@ -109,6 +111,35 @@ def gather_sizes_ibm():
     return s
 
 
+def gather_data_java(scale=1.0):
+    s = []
+    t_r = []
+    t_w = []
+    min_size = inf
+    max_size = 0
+    with open("throughputs.txt", "r") as file:
+        i = 0
+        while i < N:
+            size = int(file.readline().split()[1])
+            if size < min_size:
+                min_size = size
+            if size > max_size:
+                max_size = size
+            i += 1
+
+        values_range = max_size - min_size
+        # rewind and normalize each value in the range [0,400]
+        file.seek(0)
+        i = 0
+        while i < N:
+            line = file.readline().split()
+            s[i] = int(line[1]) / values_range * 400
+            t_r[i] = int(line[2]) * scale
+            t_w[i] = int(line[3]) * scale
+            i += 1
+    return s, t_r, t_w
+
+
 def generate_items(distribution, scale=1.0):
     # ycsb: constant 100KB sizes, zipfian throughputs
     # uniform: everything uniformely distribuetd
@@ -132,8 +163,7 @@ def generate_items(distribution, scale=1.0):
         t_w = gather_throughputs("writeStats.txt", scale)
 
     elif distribution == "java":
-        s = gather_sizes_ibm()
-        t_r, t_w = gather_throughputs("throughputs.txt", scale)
+        s, t_r, t_w = gather_data_java(scale)
 
     print(f"Number of items: {len(s)}, max_size={max(s)}, min_size={min(s)}")
     print(f"Throughputs scale: {scale}")
@@ -163,9 +193,9 @@ except ValueError:
     sys.exit("N and TPscaling must be numbers")
 
 dist = sys.argv[2]
-allowed_dists = ["ycsb", "uniform", "custom"]
-if not dist in allowed_dists:
-    raise ValueError(f"Cannot generate sizes with distribution: {dist}")
+allowed_dists = ["ycsb", "uniform", "custom", "java"]
+if dist not in allowed_dists:
+    raise ValueError(f'Distribution: "{dist}" is not allowed')
 
 sys.stdout = open("results.txt", "w")
 
@@ -186,7 +216,6 @@ s, t_r, t_w = generate_items(distribution=dist, scale=scaling)
 # print(f"S->{len(s)}, t_r->{len(t_r)}, t_w->{len(t_w)}")
 # print(f"Throughputs read min {min(t_r)}, max {max(t_r)}")
 # print(f"Throughputs write min min {min(t_w)}, max {max(t_w)}")
-
 
 total_size = sum(s)
 
@@ -209,7 +238,7 @@ threading.Thread(target=notify(message=message)).start()
 
 best_overall = inf
 
-for mt in range(13):
+for mt in range(len(vm_types)):
     if total_size < 3 * params.MAX_SIZE:
         m = 3
     else:
@@ -238,7 +267,7 @@ for mt in range(13):
             # Cassandra VMs cost
             + m * vm_costs[mt]
             # Cassandra volumes baseline charge
-            + lpSum(x[i] * s[i] for i in range(N)) * cost_volume_storage
+            + params.MAX_SIZE * m * cost_volume_storage
             # Cassandra volumes IOPS charge
             + lpSum(x[i] * (t_r[i] + t_w[i]) for i in range(N))
             * 60
@@ -278,9 +307,10 @@ for mt in range(13):
 
         # cost of Cassandra
         cost_cassandra = (
+            # Cassandra VMs cost
             m * vm_costs[mt]
             # Cassandra volumes baseline charge
-            + sum(x[i].value() * s[i] for i in range(N)) * cost_volume_storage
+            + params.MAX_SIZE * m * cost_volume_storage
             # Cassandra volumes IOPS charge
             + sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
             * 60
@@ -360,7 +390,7 @@ for mt in costs_per_type:
 print(
     f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\nTOTAL COST --> {best_option[2]}€ PER HOUR \n"
 )
-
+# COST OF ONLY DYNAMO
 cost_dynamo = (
     sum(s) * cost_storage
     + sum((s[i] / 8) * t_r[i] for i in range(N)) * 60 * 60 * cost_read
@@ -371,17 +401,19 @@ print(
     f"Cost of only DYNAMO: {cost_dynamo}\n"
     f"Cost saving compared to using only DynamoDB: {cost_dynamo-best_option[2]:.2f} € / h"
 )
-
+# COST OF ONLY CASSANDRA
 best = inf
 for i in range(len(vm_types)):
-    num_vm = ceil(max(total_size / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[i]))
-
-    if num_vm < 3:
-        num_vm = 3
+    num_vm = ceil(
+        max(total_size / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[i], 3)
+    )
     cost = (
         num_vm * vm_costs[i]
-        + total_size * cost_volume_storage
+        # Cassandra volumes baseline charge
+        + params.MAX_SIZE * num_vm * cost_volume_storage
+        # Cassandra volumes IOPS charge
         + (sum(t_r) + sum(t_w)) * 60 * 60 * cost_volume_iops
+        # Cassandra volumes performance charge
         + (sum(t_r) + sum(t_w)) * total_size * cost_volume_tp
     )
     if cost < best:
@@ -394,7 +426,6 @@ print(
     f"achieved with {best_n} machines "
     f"of type {vm_types[best_vm]}"
 )
-
 
 tot_time = t1 - t0
 print(f"Took {tot_time} seconds ")
@@ -416,3 +447,5 @@ threading.Thread(target=notify(message=message)).start()
 with open("placement", "wb") as file:
     for num in best_placement:
         file.write(bytes([int(num)]))
+
+# system("pmset sleepnow")

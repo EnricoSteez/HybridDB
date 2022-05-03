@@ -1,4 +1,3 @@
-from asyncore import read
 import os
 import re
 
@@ -41,7 +40,7 @@ for filename in os.listdir(statsdir):
                     writeStats[k] += v
                 else:
                     writeStats[k] = v
-                    if not k in readStats:
+                    if k not in readStats:
                         readStats[k] = 0
                     # items that have been inserted (write) but never read
 
