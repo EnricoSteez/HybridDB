@@ -15,7 +15,6 @@ import re
 import json
 import telegram
 from os import path
-from os import system
 import threading
 from functools import partial
 
