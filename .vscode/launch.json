@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
+            "name": "Uniform",
             "type": "python",
             "request": "launch",
             "program": "${file}",
@@ -13,7 +13,21 @@
             "justMyCode": true,
             "args": [
                 "10000",
-                "ycsb",
+                "uniform",
+                "0.05"
+            ]
+        },
+        {
+            "name": "Zipfian",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "10000",
+                "zipfian",
+                "1"
             ]
         }
     ]

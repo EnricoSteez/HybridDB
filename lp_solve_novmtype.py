@@ -17,7 +17,7 @@ import telegram
 from os import path
 import threading
 from functools import partial
-
+from scipy.stats import zipfian
 
 print = partial(print, flush=True)
 
@@ -163,6 +163,16 @@ def generate_items(distribution, scale=1.0):
 
     elif distribution == "java":
         s, t_r, t_w = gather_data_java(scale)
+    elif distribution == "zipfian":
+        a = scale
+        s = [100] * N
+        t_r = []
+        t_w = []
+        # rv = zipfian(a, N)
+        for i in range(N):
+            throughput = zipfian.pmf(i + 1, a, N) * 1000
+            t_r.append(throughput)
+            t_w.append(throughput)
 
     print(f"Number of items: {len(s)}, max_size={max(s)}, min_size={min(s)}")
     print(f"Throughputs scale: {scale}")
@@ -180,7 +190,7 @@ def generate_items(distribution, scale=1.0):
 
 if len(sys.argv) < 3 or len(sys.argv) > 4:
     sys.exit(
-        f"Usage: python3 {path.basename(__file__)} <N> <uniform|ycsb|custom|java> [TP_scale_factor]"
+        f"Usage: python3 {path.basename(__file__)} <N> <uniform|ycsb|custom|java|zipfian> [TP_scale_factor|skew]"
     )
 try:
     N = int(sys.argv[1])
@@ -192,7 +202,7 @@ except ValueError:
     sys.exit("N and TPscaling must be numbers")
 
 dist = sys.argv[2]
-allowed_dists = ["ycsb", "uniform", "custom", "java"]
+allowed_dists = ["ycsb", "uniform", "custom", "java", "zipfian"]
 if dist not in allowed_dists:
     raise ValueError(f'Distribution: "{dist}" is not allowed')
 
@@ -210,7 +220,9 @@ x = pulp.LpVariable.dicts(
 rng = default_rng()
 
 # sizes in KB, throughputs in ops/s
+t0 = time()
 s, t_r, t_w = generate_items(distribution=dist, scale=scaling)
+t_items = time()
 # print("Retrieved real world data:")
 # print(f"S->{len(s)}, t_r->{len(t_r)}, t_w->{len(t_w)}")
 # print(f"Throughputs read min {min(t_r)}, max {max(t_r)}")
@@ -225,11 +237,12 @@ old_placement = [0] * N
 # print(f"Items: {s}")
 solver = pulp.getSolver("PULP_CBC_CMD")
 run_id = uuid4()
-t0 = time()
+
 message = (
     f"Optimisation id= {run_id}\n"
     f"N = {N:.0e}, {dist} distribution\n"
     f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
+    f"Items generation took: {strftime('%H:%M:%S',gmtime(t_items-t0))}\n"
     "AWAITING TERMINATION"
 )
 threading.Thread(target=notify(message=message)).start()
@@ -238,10 +251,7 @@ threading.Thread(target=notify(message=message)).start()
 best_overall = inf
 
 for mt in range(len(vm_types)):
-    if total_size < 3 * params.MAX_SIZE:
-        m = 3
-    else:
-        m = ceil(total_size / params.MAX_SIZE)  # we will start from RF in the future
+    m = max(3, total_size / params.MAX_SIZE)
     machine_step = 2
     fine_tuning_stage = False  # whether we are in the binary search phase or not
     prev_cost = inf
@@ -339,10 +349,10 @@ for mt in range(len(vm_types)):
         total_cost = cost_dynamo + cost_cassandra
         print(f"TOTAL COST: {total_cost:.2f}\n")
         if (
-            total_cost < prev_cost and not fine_tuning_stage and items_cassandra != N
+            total_cost < prev_cost and not fine_tuning_stage  # and items_cassandra != N
         ):  # total cost is decreasing and placement is still hybrid -> proceed normally
             prev_cost = total_cost
-            best_cost_current_vmtype = total_cost
+            best_cost = total_cost
             best_placement = [x[i].value() for i in range(N)]
             best_machines = m
             prev_m = m
@@ -355,22 +365,22 @@ for mt in range(len(vm_types)):
             # start by exploring linearly the last unexplored sector of possible sizes
             m = prev_m + 1
         elif (
-            total_cost < best_cost_current_vmtype
+            total_cost < best_cost
         ):  # fine_tuning_stage phase, cost is still decreasing: increase m by 1 and keep exploring
             prev_m = m
             best_machines = m
             m += 1
-            best_cost_current_vmtype = total_cost
+            best_cost = total_cost
             prev_cost = total_cost
             best_placement = [x[i].value() for i in range(N)]
 
         else:  # fine_tuning_stage phase, cost is increasing: best is previous
 
             print(
-                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost per hour of {best_cost_current_vmtype:.2f}"
+                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost per hour of {best_cost:.2f}"
             )
             print("-" * 80)
-            new_result = prev_m, best_cost_current_vmtype
+            new_result = prev_m, best_cost
             costs_per_type[mt] = new_result
             break
 
@@ -396,34 +406,33 @@ cost_dynamo = (
     + sum(s[i] * t_w[i] for i in range(N)) * 60 * 60 * cost_write
 )
 
-print(
-    f"Cost of only DYNAMO: {cost_dynamo}\n"
-    f"Cost saving compared to using only DynamoDB: {cost_dynamo-best_option[2]:.2f} € / h"
-)
+print(f"Cost of only DYNAMO: {cost_dynamo:.2f}€/h")
 # COST OF ONLY CASSANDRA
 best = inf
-for i in range(len(vm_types)):
-    num_vm = ceil(
-        max(total_size / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[i], 3)
-    )
+for mt in range(len(vm_types)):
+    m = ceil(max(total_size / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[mt], 3))
     cost = (
-        num_vm * vm_costs[i]
+        m * vm_costs[mt]
         # Cassandra volumes baseline charge
-        + params.MAX_SIZE * num_vm * cost_volume_storage
+        + params.MAX_SIZE * m * cost_volume_storage
         # Cassandra volumes IOPS charge
         + (sum(t_r) + sum(t_w)) * 60 * 60 * cost_volume_iops
         # Cassandra volumes performance charge
-        + (sum(t_r) + sum(t_w)) * total_size * cost_volume_tp
+        + sum((t_r[i] + t_w[i]) * s[i] for i in range(N)) * cost_volume_tp
     )
     if cost < best:
         best = cost
-        best_vm = i
-        best_n = num_vm
+        best_vm = mt
+        best_n = m
 
 print(
     f"Cost of only CASSANDRA: {best:.2f}€/h, "
     f"achieved with {best_n} machines "
     f"of type {vm_types[best_vm]}"
+)
+
+print(
+    f"Cost saving compared to best option: {min(cost_dynamo,cost_cassandra)-best_option[2]:.2f} €/h"
 )
 
 tot_time = t1 - t0
