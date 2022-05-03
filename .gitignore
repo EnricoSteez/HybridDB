@@ -8,3 +8,5 @@ stats/
 readStats.txt
 writeStats.txt
 *.tar.gz
+*.txt
+placement
