@@ -139,7 +139,7 @@ def gather_data_java(scale=1.0):
     return s, t_r, t_w
 
 
-def generate_items(distribution, scale=1.0, custom_size=100):
+def generate_items(distribution, scale=1.0, custom_size=100, max_throughput=20000):
     # ycsb: constant 100KB sizes, zipfian throughputs
     # uniform: everything uniformely distribuetd
     # custom: sizes from ibm traces, throughputs from YCSB
@@ -170,7 +170,7 @@ def generate_items(distribution, scale=1.0, custom_size=100):
         t_w = []
         # rv = zipfian(a, N)
         for i in range(N):
-            throughput = zipfian.pmf(i + 1, a, N) * 1000
+            throughput = zipfian.pmf(i + 1, a, N) * (max_throughput / 2)
             t_r.append(throughput)
             t_w.append(throughput)
 
@@ -192,19 +192,20 @@ def generate_items(distribution, scale=1.0, custom_size=100):
 
 if len(sys.argv) < 3 or len(sys.argv) > 5:
     sys.exit(
-        f"Usage: python3 {path.basename(__file__)} <N> <items_size [KB]> <uniform|ycsb|custom|java|zipfian> [TP_scale_factor|skew]"
+        f"Usage: python3 {path.basename(__file__)} <N> <items_size [KB]> <max_throughput> <uniform|ycsb|custom|java|zipfian> [TP_scale_factor|skew]"
     )
 try:
     N = int(sys.argv[1])
     custom_size = int(sys.argv[2])
+    max_throughput = int(sys.argv[3])
     if len(sys.argv) == 5:
-        scalingFactor = float(sys.argv[4])
+        scalingFactor = float(sys.argv[5])
     else:
         scalingFactor = 1
 except ValueError:
-    sys.exit("N and TPscaling must be numbers")
+    sys.exit("N, items_size, max_throughput and TPscaling must be numbers")
 
-dist = sys.argv[3]
+dist = sys.argv[4]
 allowed_dists = ["ycsb", "uniform", "custom", "java", "zipfian"]
 if dist not in allowed_dists:
     raise ValueError(f'Distribution: "{dist}" is not allowed')
@@ -225,7 +226,10 @@ rng = default_rng()
 # sizes in KB, throughputs in ops/s
 t0 = time()
 s, t_r, t_w = generate_items(
-    distribution=dist, scale=scalingFactor, custom_size=custom_size
+    distribution=dist,
+    scale=scalingFactor,
+    custom_size=custom_size,
+    max_throughput=max_throughput,
 )
 t_items = time()
 # print("Retrieved real world data:")
