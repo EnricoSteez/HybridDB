@@ -10,3 +10,4 @@ writeStats.txt
 *.tar.gz
 *.txt
 placement
+*.sh
