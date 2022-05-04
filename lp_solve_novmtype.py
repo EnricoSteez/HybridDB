@@ -190,7 +190,7 @@ def generate_items(distribution, scale=1.0, custom_size=100, max_throughput=2000
     return s, t_r, t_w
 
 
-if len(sys.argv) < 3 or len(sys.argv) > 5:
+if len(sys.argv) < 3 or len(sys.argv) > 6:
     sys.exit(
         f"Usage: python3 {path.basename(__file__)} <N> <items_size [KB]> <max_throughput> <uniform|ycsb|custom|java|zipfian> [TP_scale_factor|skew]"
     )
@@ -210,7 +210,7 @@ allowed_dists = ["ycsb", "uniform", "custom", "java", "zipfian"]
 if dist not in allowed_dists:
     raise ValueError(f'Distribution: "{dist}" is not allowed')
 
-#sys.stdout = open("results.txt", "w")
+# sys.stdout = open("results.txt", "w")
 
 # Number of items N
 RF = params.REPLICATION_FACTOR
@@ -450,8 +450,8 @@ tot_time = t1 - t0
 print(f"Took {tot_time} seconds ")
 if t1 - t0 > 60:
     print(f"({int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s)\n")
-#sys.stdout.close()
-#sys.stdout = sys.__stdout__
+# sys.stdout.close()
+# sys.stdout = sys.__stdout__
 
 message = (
     f"Optimisation id= {run_id}\n"
