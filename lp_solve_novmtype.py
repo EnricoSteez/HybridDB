@@ -139,12 +139,12 @@ def gather_data_java(scale=1.0):
     return s, t_r, t_w
 
 
-def generate_items(distribution, scale=1.0):
+def generate_items(distribution, scale=1.0, custom_size=100):
     # ycsb: constant 100KB sizes, zipfian throughputs
     # uniform: everything uniformely distribuetd
     # custom: sizes from ibm traces, throughputs from YCSB
     if distribution == "ycsb":
-        s = [100] * N
+        s = [custom_size] * N
         t_r = gather_throughputs("readStats.txt", scale)
         t_w = gather_throughputs("writeStats.txt", scale)
 
@@ -165,7 +165,7 @@ def generate_items(distribution, scale=1.0):
         s, t_r, t_w = gather_data_java(scale)
     elif distribution == "zipfian":
         a = scale
-        s = [100] * N
+        s = [custom_size] * N
         t_r = []
         t_w = []
         # rv = zipfian(a, N)
@@ -174,11 +174,13 @@ def generate_items(distribution, scale=1.0):
             t_r.append(throughput)
             t_w.append(throughput)
 
-    print(f"Number of items: {len(s)}, max_size={max(s)}, min_size={min(s)}")
-    print(f"Throughputs scale: {scale}")
-    print(f"Size of t_r: {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}")
-    print(f"Size of t_w: {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}")
-    print("\n")
+    print(
+        f"Number of items: {len(s)}, max_size={max(s)}, min_size={min(s)}\n"
+        f"Throughputs scale: {scale}\n"
+        f"Size of t_r: {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}\n"
+        f"Size of t_w: {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}\n"
+        "\n"
+    )
     # print(s)
     # print("SEPARATOR")
     # print(t_r)
@@ -188,20 +190,21 @@ def generate_items(distribution, scale=1.0):
     return s, t_r, t_w
 
 
-if len(sys.argv) < 3 or len(sys.argv) > 4:
+if len(sys.argv) < 3 or len(sys.argv) > 5:
     sys.exit(
-        f"Usage: python3 {path.basename(__file__)} <N> <uniform|ycsb|custom|java|zipfian> [TP_scale_factor|skew]"
+        f"Usage: python3 {path.basename(__file__)} <N> <items_size [KB]> <uniform|ycsb|custom|java|zipfian> [TP_scale_factor|skew]"
     )
 try:
     N = int(sys.argv[1])
-    if len(sys.argv) == 4:
-        scaling = float(sys.argv[3])
+    custom_size = int(sys.argv[2])
+    if len(sys.argv) == 5:
+        scalingFactor = float(sys.argv[4])
     else:
-        scaling = 1
+        scalingFactor = 1
 except ValueError:
     sys.exit("N and TPscaling must be numbers")
 
-dist = sys.argv[2]
+dist = sys.argv[3]
 allowed_dists = ["ycsb", "uniform", "custom", "java", "zipfian"]
 if dist not in allowed_dists:
     raise ValueError(f'Distribution: "{dist}" is not allowed')
@@ -221,7 +224,9 @@ rng = default_rng()
 
 # sizes in KB, throughputs in ops/s
 t0 = time()
-s, t_r, t_w = generate_items(distribution=dist, scale=scaling)
+s, t_r, t_w = generate_items(
+    distribution=dist, scale=scalingFactor, custom_size=custom_size
+)
 t_items = time()
 # print("Retrieved real world data:")
 # print(f"S->{len(s)}, t_r->{len(t_r)}, t_w->{len(t_w)}")
@@ -337,13 +342,15 @@ for mt in range(len(vm_types)):
         iops_cassandra = int(sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N)))
         tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
         print(
-            f"Number of items on Cassandra :{items_cassandra}, items on Dynamo: {int(items_dynamo)}"
+            f"Number of items on Cassandra :{items_cassandra}, "
+            f"items on Dynamo: {int(items_dynamo)}"
         )
         print(f"Percentage of items on Cassandra: {items_cassandra/N*100:.2f}%")
         print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops*100:.2f}%")
         size_cassandra = sum((x[i].value()) * s[i] for i in range(N))
         print(
-            f"Amount of data on Cassandra: {size_cassandra/2**10:.3f}/{total_size/2**10:.3f} [MB] ({size_cassandra/total_size*100:.3f}%)"
+            f"Amount of data on Cassandra: {size_cassandra/2**10:.3f}/{total_size/2**10:.3f}"
+            f" [MB] ({size_cassandra/total_size*100:.3f}%)"
         )
 
         total_cost = cost_dynamo + cost_cassandra
@@ -401,14 +408,14 @@ print(
 )
 # COST OF ONLY DYNAMO
 cost_dynamo = (
-    sum(s) * cost_storage
+    total_size * cost_storage
     + sum((s[i] / 8) * t_r[i] for i in range(N)) * 60 * 60 * cost_read
     + sum(s[i] * t_w[i] for i in range(N)) * 60 * 60 * cost_write
 )
 
 print(f"Cost of only DYNAMO: {cost_dynamo:.2f}€/h")
 # COST OF ONLY CASSANDRA
-best = inf
+best_cost_cassandra = inf
 for mt in range(len(vm_types)):
     m = ceil(max(total_size / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[mt], 3))
     cost = (
@@ -420,19 +427,19 @@ for mt in range(len(vm_types)):
         # Cassandra volumes performance charge
         + sum((t_r[i] + t_w[i]) * s[i] for i in range(N)) * cost_volume_tp
     )
-    if cost < best:
-        best = cost
-        best_vm = mt
-        best_n = m
+    if cost < best_cost_cassandra:
+        best_cost_cassandra = cost
+        best_vm_cassandra = mt
+        best_n_cassandra = m
 
 print(
-    f"Cost of only CASSANDRA: {best:.2f}€/h, "
-    f"achieved with {best_n} machines "
-    f"of type {vm_types[best_vm]}"
+    f"Cost of only CASSANDRA: {best_cost_cassandra:.2f}€/h, "
+    f"achieved with {best_n_cassandra} machines "
+    f"of type {vm_types[best_vm_cassandra]}"
 )
 
 print(
-    f"Cost saving compared to best option: {min(cost_dynamo,cost_cassandra)-best_option[2]:.2f} €/h"
+    f"Cost saving compared to best option: {min(cost_dynamo,best_cost_cassandra)-best_option[2]:.2f} €/h"
 )
 
 tot_time = t1 - t0
