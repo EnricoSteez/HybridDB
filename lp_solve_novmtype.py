@@ -460,7 +460,7 @@ message = (
     f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
     f"Finished on {strftime('%a at %H:%M:%S',gmtime(t1))}\n"
     f"Took: {strftime('%H:%M:%S',gmtime(tot_time))}\n"
-    'See "results.txt" for more info'
+    f"See {filename} for detailed info"
 )
 threading.Thread(target=notify(message=message)).start()
 
