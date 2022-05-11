@@ -396,7 +396,7 @@ for mt in range(len(vm_types)):
             costs_per_type[mt] = new_result
             break
 
-t1 = time()
+t_end = time()
 print("FINAL RESULTS:")
 # mt, n, cost
 best = inf
@@ -447,9 +447,9 @@ print(
     f"Cost saving compared to best option: {min(cost_dynamo,best_cost_cassandra)-best_option[2]:.2f} €/h"
 )
 
-tot_time = t1 - t0
+tot_time = t_end - t_items
 print(f"Took {tot_time} seconds ")
-if t1 - t0 > 60:
+if t_end - t0 > 60:
     print(f"({int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s)\n")
 sys.stdout.close()
 sys.stdout = sys.__stdout__
@@ -458,8 +458,8 @@ message = (
     f"Optimisation id= {run_id}\n"
     f"N = {N:.0e}, {dist} distribution\n"
     f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
-    f"Finished on {strftime('%a at %H:%M:%S',gmtime(t1))}\n"
-    f"Took: {strftime('%H:%M:%S',gmtime(tot_time))}\n"
+    f"Finished on {strftime('%a at %H:%M:%S',gmtime(t_end))}\n"
+    f"Optimisation took: {strftime('%H:%M:%S',gmtime(tot_time))}\n"
     f"See {filename} for detailed info"
 )
 threading.Thread(target=notify(message=message)).start()
