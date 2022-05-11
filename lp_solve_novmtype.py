@@ -366,9 +366,9 @@ for mt in range(len(vm_types)):
             f" [MB] ({size_cassandra/total_size:.2%})"
         )
 
-        total_cost = cost_dynamo + cost_cassandra
+        total_cost = problem.objective.value()
         print(f"TOTAL COST: {total_cost:.2f}\n")
-        print(f"TOTAL COST PuLP: {problem.objective.value():.2f}\n")
+
         if (
             total_cost < prev_cost and not fine_tuning_stage  # and items_cassandra != N
         ):  # total cost is decreasing and placement is still hybrid -> proceed normally
