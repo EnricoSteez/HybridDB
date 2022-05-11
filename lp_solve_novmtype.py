@@ -139,8 +139,8 @@ def gather_data_java(scale=1.0):
     return s, t_r, t_w
 
 
-def generate_items(distribution, scale=1.0, custom_size=100, max_throughput=20000):
-    # ycsb: constant 100KB sizes, zipfian throughputs
+def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=20000):
+    # ycsb: constant 100KB sizes = 0.1MB, zipfian throughputs
     # uniform: everything uniformely distribuetd
     # custom: sizes from ibm traces, throughputs from YCSB
     if distribution == "ycsb":
@@ -150,8 +150,8 @@ def generate_items(distribution, scale=1.0, custom_size=100, max_throughput=2000
 
     elif distribution == "uniform":
         # uniform distribution
-        # max size for DynamoDB is 400KB
-        s = list((400 - 1) * np.random.rand(N) + 1)  # size in Bytes
+        # max size for DynamoDB is 400KB = 0.4MB
+        s = list((0.4 - 1) * np.random.rand(N) + 1)  # size in MB
         t_r = np.random.rand(N) * 500 * scale
         t_w = np.random.rand(N) * 500 * scale
 
@@ -192,7 +192,7 @@ def generate_items(distribution, scale=1.0, custom_size=100, max_throughput=2000
 
 if len(sys.argv) < 3 or len(sys.argv) > 7:
     sys.exit(
-        f"Usage: python3 {path.basename(__file__)} <N> <items_size [KB]> <max_throughput> <uniform|ycsb|custom|java|zipfian> [TP_scale_factor|skew] outputFileName"
+        f"Usage: python3 {path.basename(__file__)} <N> <items_size [MB]> <max_throughput> <uniform|ycsb|custom|java|zipfian> [TP_scale_factor|skew] outputFileName"
     )
 try:
     N = int(sys.argv[1])
@@ -224,7 +224,7 @@ x = pulp.LpVariable.dicts(
 
 rng = default_rng()
 
-# sizes in KB, throughputs in ops/s
+# sizes in MB, throughputs in ops/s
 t0 = time()
 s, t_r, t_w = generate_items(
     distribution=dist,
@@ -309,15 +309,15 @@ for mt in range(len(vm_types)):
         result = problem.solve(solver)
 
         # cost of Dynamo
-        # 1 read unit every 8 KB (multiply the throughput by size/8)
+        # 1 read unit every 8 KB (multiply the throughput by size[MB]*1000/8)
+        # 1 write unit every KB (multiply the throughput by the size[MB]*1000 to obtain the units)
         cost_dynamo = (
             sum((1 - x[i].value()) * s[i] for i in range(N)) * cost_storage
-            + sum((1 - x[i].value()) * (s[i] / 8) * t_r[i] for i in range(N))
+            + sum((1 - x[i].value()) * (s[i] * 1000 / 8) * t_r[i] for i in range(N))
             * 60
             * 60
             * cost_read
-            # 1 write unit every KB (multiply the throughput by the size in KB to obtain the units)
-            + sum((1 - x[i].value()) * s[i] * t_w[i] for i in range(N))
+            + sum((1 - x[i].value()) * s[i] * 1000 * t_w[i] for i in range(N))
             * 60
             * 60
             * cost_write
@@ -347,15 +347,15 @@ for mt in range(len(vm_types)):
         iops_cassandra = int(sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N)))
         tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
         print(
-            f"Number of items on Cassandra :{items_cassandra}, "
+            f"Number of items on Cassandra :{int(items_cassandra)}, "
             f"items on Dynamo: {int(items_dynamo)}"
         )
-        print(f"Percentage of items on Cassandra: {items_cassandra/N*100:.2f}%")
-        print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops*100:.2f}%")
+        print(f"Percentage of items on Cassandra: {items_cassandra/N:.2%}")
+        print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2%}")
         size_cassandra = sum((x[i].value()) * s[i] for i in range(N))
         print(
-            f"Amount of data on Cassandra: {size_cassandra/2**10:.3f}/{total_size/2**10:.3f}"
-            f" [MB] ({size_cassandra/total_size*100:.3f}%)"
+            f"Amount of data on Cassandra: {size_cassandra:.2f}/{total_size:.2f}"
+            f" [MB] ({size_cassandra/total_size:.2%})"
         )
 
         total_cost = cost_dynamo + cost_cassandra
@@ -409,13 +409,13 @@ for mt in costs_per_type:
         best_option = (mt, number, cost)
 
 print(
-    f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\nTOTAL COST --> {best_option[2]}€ PER HOUR \n"
+    f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\nTOTAL COST --> {best_option[2]:.2f}€ PER HOUR \n"
 )
 # COST OF ONLY DYNAMO
 cost_dynamo = (
     total_size * cost_storage
-    + sum((s[i] / 8) * t_r[i] for i in range(N)) * 60 * 60 * cost_read
-    + sum(s[i] * t_w[i] for i in range(N)) * 60 * 60 * cost_write
+    + sum((s[i] * 1000 / 8) * t_r[i] for i in range(N)) * 60 * 60 * cost_read
+    + sum(s[i] * 1000 * t_w[i] for i in range(N)) * 60 * 60 * cost_write
 )
 
 print(f"Cost of only DYNAMO: {cost_dynamo:.2f}€/h")

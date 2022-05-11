@@ -1,11 +1,11 @@
 """Numerical parameters file"""
-MAX_SIZE = 4 * 1e9  # 4TB with KB as baseline
+MAX_SIZE = 4 * 1e6  # 4TB with MB as baseline
 REPLICATION_FACTOR = 3
 COST_DYNAMO_WRITE_UNIT = 1.4842 / 1e6  # cost per million write requests: 1.4842 / 1e6
 COST_DYNAMO_READ_UNIT = 0.2968 / 1e6  # cost per million read requests: 0.2968 / 1e6
 COST_DYNAMO_STORAGE = (
-    0.29715 / 30 / 24 / 1e6
-)  # 0.29715 cost per GB per month -> per Kilo byte per hour
+    0.29715 / 30 / 24 / 1e3
+)  # 0.29715 cost per GB per month -> per Mega byte per hour
 # period (hours) of stability over which the optimizer calculates the total cost
 WORKLOAD_STABILITY = 10
 
@@ -71,7 +71,6 @@ vm_costs = [
 # General Purpose SSD (gp3) - IOPS	3,000 IOPS free and $0.0058/provisioned IOPS-month over 3,000
 # General Purpose SSD (gp3) - Throughput	125 MB/s free and $0.0462/provisioned MB/s-month over 125
 
-COST_VOLUME_STORAGE = 0.0924 / 30 / 24 / 1e6  # per KB per hour
+COST_VOLUME_STORAGE = 0.0924 / 30 / 24 / 1e3  # per MB per hour
 COST_VOLUME_IOPS = 0.0058 / 30 / 24  # per IOPS-hour
-COST_VOLUME_THROUGHPUT = 0.0462 / 30 / 24 / 1e3  # $ per KB/s per hour
-
+COST_VOLUME_THROUGHPUT = 0.0462 / 30 / 24  # $ per MB/s per hour
