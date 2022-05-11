@@ -175,10 +175,10 @@ def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=2000
             t_w.append(throughput)
 
     print(
-        f"Number of items: {len(s)}, max_size={max(s)}, min_size={min(s)}\n"
+        f"Number of items: {len(s)}, max_size={max(s)}MB, min_size={min(s)}MB\n"
         f"Throughputs scale: {scale}\n"
-        f"Size of t_r: {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}\n"
-        f"Size of t_w: {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}\n"
+        f"len(t_r): {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}\n"
+        f"len(t_w): {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}\n"
     )
     # print(s)
     # print("SEPARATOR")
@@ -267,31 +267,25 @@ for mt in range(len(vm_types)):
     while True:
         print(f"Evaluating {m} machines of type {vm_types[mt]}")
         # Optimization Problem
-        problem = pulp.LpProblem("ItemsDisplacement", pulp.LpMinimize)
+        problem = pulp.LpProblem("ItemsPlacement", pulp.LpMinimize)
 
         # objective function
         problem += (
-            # Dynamo static cost
             lpSum([(1 - x[i]) * s[i] for i in range(N)]) * cost_storage
-            # Dynamo accesses cost
-            + lpSum([(1 - x[i]) * t_r[i] * (s[i] / 8) for i in range(N)])
+            + lpSum([(1 - x[i]) * t_r[i] * (s[i] * 1000 / 8) for i in range(N)])
             * 60
             * 60
             * cost_read
-            + lpSum([(1 - x[i]) * s[i] * t_w[i] for i in range(N)])
+            + lpSum([(1 - x[i]) * s[i] * 1000 * t_w[i] for i in range(N)])
             * 60
             * 60
             * cost_write
-            # Cassandra VMs cost
             + m * vm_costs[mt]
-            # Cassandra volumes baseline charge
             + params.MAX_SIZE * m * cost_volume_storage
-            # Cassandra volumes IOPS charge
             + lpSum(x[i] * (t_r[i] + t_w[i]) for i in range(N))
             * 60
             * 60
             * cost_volume_iops
-            # Cassandra volumes performance charge
             + lpSum(x[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N)) * cost_volume_tp,
             "Minimization of the total cost of the hybrid solution",
         )
@@ -307,6 +301,13 @@ for mt in range(len(vm_types)):
 
         result = problem.solve(solver)
 
+        items_cassandra = sum(x[i].value() for i in range(N))
+        items_dynamo = sum(1 - x[i].value() for i in range(N))
+        print(
+            f"Tot items on Cassandra: {int(items_cassandra)}\n"
+            f"Tot items on Dynamo: {int(items_dynamo)}"
+        )
+
         # cost of Dynamo
         # 1 read unit every 8 KB (multiply the throughput by size[MB]*1000/8)
         # 1 write unit every KB (multiply the throughput by the size[MB]*1000 to obtain the units)
@@ -321,34 +322,42 @@ for mt in range(len(vm_types)):
             * 60
             * cost_write
         )
-        print(f"Cost of Dynamo (1 hour) = {cost_dynamo:.3f}")
+        print(f"Cost of Dynamo (hybrid) = {cost_dynamo:.2f}€/h")
 
         # cost of Cassandra
+        cost_iops = (
+            sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
+            * 60
+            * 60
+            * cost_volume_iops
+        )
+        cost_performance = (
+            sum(x[i].value() * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+            * cost_volume_tp
+        )
+        cost_baseline = params.MAX_SIZE * m * cost_volume_storage
+        # cost VMs + storage charge + iops charge + tp charge
         cost_cassandra = (
-            # Cassandra VMs cost
             m * vm_costs[mt]
-            # Cassandra volumes baseline charge
             + params.MAX_SIZE * m * cost_volume_storage
-            # Cassandra volumes IOPS charge
             + sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
             * 60
             * 60
             * cost_volume_iops
-            # Cassandra volumes performance charge
             + sum(x[i].value() * (t_r[i] + t_w[i]) * s[i] for i in range(N))
             * cost_volume_tp
         )
+        print(
+            f"Cassandra machines = {m * vm_costs[mt]:.2f}\n"
+            f"Cassandra baseline = {cost_baseline:.2f}\n"
+            f"Cassandra iops = {cost_iops:.2f}\n"
+            f"Cassandra baseline = {cost_performance:.2f}\n"
+            f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h"
+        )
 
-        print(f"Cost of Cassandra (1 hour) = {cost_cassandra:.3f}")
-
-        items_cassandra = sum(x[i].value() for i in range(N))
-        items_dynamo = sum(1 - x[i].value() for i in range(N))
         iops_cassandra = int(sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N)))
         tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
-        print(
-            f"Number of items on Cassandra :{int(items_cassandra)}, "
-            f"items on Dynamo: {int(items_dynamo)}"
-        )
+
         print(f"Percentage of items on Cassandra: {items_cassandra/N:.2%}")
         print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2%}")
         size_cassandra = sum((x[i].value()) * s[i] for i in range(N))
@@ -359,6 +368,7 @@ for mt in range(len(vm_types)):
 
         total_cost = cost_dynamo + cost_cassandra
         print(f"TOTAL COST: {total_cost:.2f}\n")
+        print(f"TOTAL COST PuLP: {problem.objective.value():.2f}\n")
         if (
             total_cost < prev_cost and not fine_tuning_stage  # and items_cassandra != N
         ):  # total cost is decreasing and placement is still hybrid -> proceed normally
@@ -388,7 +398,7 @@ for mt in range(len(vm_types)):
         else:  # fine_tuning_stage phase, cost is increasing: best is previous
 
             print(
-                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost per hour of {best_cost:.2f}"
+                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost of {best_cost:.2f}€/h"
             )
             print("-" * 80)
             new_result = prev_m, best_cost

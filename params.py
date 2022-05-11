@@ -1,4 +1,4 @@
-"""Numerical parameters file"""
+"""Parameters file"""
 MAX_SIZE = 4 * 1e6  # 4TB with MB as baseline
 REPLICATION_FACTOR = 3
 COST_DYNAMO_WRITE_UNIT = 1.4842 / 1e6  # cost per million write requests: 1.4842 / 1e6
@@ -6,6 +6,7 @@ COST_DYNAMO_READ_UNIT = 0.2968 / 1e6  # cost per million read requests: 0.2968 /
 COST_DYNAMO_STORAGE = (
     0.29715 / 30 / 24 / 1e3
 )  # 0.29715 cost per GB per month -> per Mega byte per hour
+
 # period (hours) of stability over which the optimizer calculates the total cost
 WORKLOAD_STABILITY = 10
 
