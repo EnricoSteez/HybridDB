@@ -179,7 +179,6 @@ def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=2000
         f"Throughputs scale: {scale}\n"
         f"Size of t_r: {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}\n"
         f"Size of t_w: {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}\n"
-        "\n"
     )
     # print(s)
     # print("SEPARATOR")
