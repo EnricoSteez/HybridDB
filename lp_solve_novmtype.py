@@ -195,7 +195,7 @@ if len(sys.argv) < 3 or len(sys.argv) > 7:
     )
 try:
     N = int(sys.argv[1])
-    custom_size = int(sys.argv[2])
+    custom_size = float(sys.argv[2])
     max_throughput = int(sys.argv[3])
     if len(sys.argv) == 5:
         scalingFactor = float(sys.argv[5])
