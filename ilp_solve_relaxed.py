@@ -376,53 +376,31 @@ for mt in range(len(vm_types)):
             f"(Should be equal to {cost_dynamo+cost_cassandra:.2f})\n"
         )
 
-        if (
-            total_cost < prev_cost and not fine_tuning_stage  # and items_cassandra != N
-        ):  # total cost is decreasing and placement is still hybrid -> proceed normally
-            prev_cost = total_cost
+        if total_cost < prev_cost:  # total cost is decreasing -> proceed normally
             best_cost = total_cost
             best_placement = placement
-            best_machines = m
-            prev_m = m
-            m += machine_step
-        elif (
-            not fine_tuning_stage
-        ):  # total cost is increasing --> enter fine_tuning_stage phase to find the perfect m
-            prev_cost = total_cost
-            fine_tuning_stage = True
-            # start by exploring linearly the last unexplored sector of possible sizes
-            m = prev_m + 1
-        elif (
-            total_cost < best_cost
-        ):  # fine_tuning_stage phase, cost is still decreasing: increase m by 1 and keep exploring
-            prev_m = m
             best_machines = m
             m += 1
-            best_cost = total_cost
-            prev_cost = total_cost
-            best_placement = placement
-
-        else:  # fine_tuning_stage phase, cost is increasing: best is previous
-
+        else:  # total cost is increasing -->  best is previous
             print(
                 f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost of {best_cost:.2f}€/h"
             )
             print("-" * 80)
-            new_result = prev_m, best_cost
+            new_result = best_machines, best_cost
             costs_per_type[mt] = new_result
             break
 
 t_end = time()
 print("FINAL RESULTS:")
-# mt, n, cost
+
 best = inf
 for mt in costs_per_type:
     cost = costs_per_type[mt][1]
-    number = costs_per_type[mt][0]
-    print(f"{vm_types[mt]}: {number} machines --> {cost:.3f} € per hour")
-    if cost < best:
+    num_vms = costs_per_type[mt][0]
+    print(f"{vm_types[mt]}: {num_vms} machines --> {cost:.2f} € per hour")
+    if cost < best:                                                    
         best = cost
-        best_option = (mt, number, cost)
+        best_option = (mt, num_vms, cost)
 
 print(
     f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\n"
