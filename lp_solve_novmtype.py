@@ -17,7 +17,6 @@ import telegram
 from os import path
 import threading
 from functools import partial
-from scipy.stats import zipfian
 
 print = partial(print, flush=True)
 
@@ -169,10 +168,11 @@ def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=2000
         t_r = []
         t_w = []
         # rv = zipfian(a, N)
-        for i in range(N):
-            throughput = zipfian.pmf(i + 1, a, N) * (max_throughput / 2)
-            t_r.append(throughput)
-            t_w.append(throughput)
+        with open(f"zipfian/{N}_{a}", "w") as file:
+            for i in range(N):
+                prob = float(file.readline().split()[0])
+                t_r.append(prob * max_throughput / 2)
+                t_w.append(prob * max_throughput / 2)
 
     print(
         f"Number of items: {len(s)}, max_size={max(s)}MB, min_size={min(s)}MB\n"
