@@ -24,6 +24,7 @@ while N < 1000001:
                 n = zipfian.pmf(i + 1, a, N)
                 file.write(f"{n}\n")
             # file.truncate(file.tell() - 1)
+        notify(f"Finished zipfian N={N} a={a}")
     N *= 10
 
 # fig, ax = plt.subplots(1, 1)
