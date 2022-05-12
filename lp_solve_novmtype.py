@@ -324,18 +324,18 @@ for mt in range(len(vm_types)):
         )
         print(f"Cost of Dynamo (hybrid) = {cost_dynamo:.2f}€/h")
 
-        # cost of Cassandra
-        cost_iops = (
-            sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
-            * 60
-            * 60
-            * cost_volume_iops
-        )
-        cost_performance = (
-            sum(x[i].value() * (t_r[i] + t_w[i]) * s[i] for i in range(N))
-            * cost_volume_tp
-        )
-        cost_baseline = params.MAX_SIZE * m * cost_volume_storage
+        # # cost of Cassandra
+        # cost_iops = (
+        #     sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
+        #     * 60
+        #     * 60
+        #     * cost_volume_iops
+        # )
+        # cost_performance = (
+        #     sum(x[i].value() * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+        #     * cost_volume_tp
+        # )
+        # cost_baseline = params.MAX_SIZE * m * cost_volume_storage
         # cost VMs + storage charge + iops charge + tp charge
         cost_cassandra = (
             m * vm_costs[mt]
@@ -348,14 +348,14 @@ for mt in range(len(vm_types)):
             * cost_volume_tp
         )
         print(
-            f"Cassandra machines = {m * vm_costs[mt]:.2f}\n"
-            f"Cassandra baseline = {cost_baseline:.2f}\n"
-            f"Cassandra iops = {cost_iops:.2f}\n"
-            f"Cassandra baseline = {cost_performance:.2f}\n"
+            # f"Cassandra machines = {m * vm_costs[mt]:.2f}\n"
+            # f"Cassandra baseline = {cost_baseline:.2f}\n"
+            # f"Cassandra iops = {cost_iops:.2f}\n"
+            # f"Cassandra baseline = {cost_performance:.2f}\n"
             f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h"
         )
 
-        iops_cassandra = int(sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N)))
+        iops_cassandra = sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
         tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
 
         print(f"Percentage of items on Cassandra: {items_cassandra/N:.2%}")
@@ -431,7 +431,9 @@ print(f"Cost of only DYNAMO: {cost_dynamo:.2f}€/h")
 # COST OF ONLY CASSANDRA
 best_cost_cassandra = inf
 for mt in range(len(vm_types)):
-    m = ceil(max(total_size / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[mt], 3))
+    m = ceil(
+        max(total_size * RF / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[mt], 3)
+    )
     cost = (
         m * vm_costs[mt]
         # Cassandra volumes baseline charge

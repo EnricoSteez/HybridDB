@@ -362,15 +362,14 @@ for mt in range(len(vm_types)):
 
         iops_cassandra = sum(placement[i] * (t_r[i] + t_w[i]) for i in range(N))
         tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
-
-        print(f"Percentage of items on Cassandra: {items_cassandra/N:.2%}")
-        print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2%}")
-        size_cassandra = sum((placement[i]) * s[i] for i in range(N))
+        size_cassandra = sum((placement[i]) * s[i] for i in range(N)) * RF
+        print(f"Amount of data on Cassandra: {size_cassandra:.2f} [MB]")
         print(
-            f"Amount of data on Cassandra: {size_cassandra:.2f}/{total_size:.2f}"
-            f" [MB] ({size_cassandra/total_size:.2%})"
+            f"Percentage of items on Cassandra: {items_cassandra/N:.2%}\n"
+            f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2%}\n"
+            f"IOPS saturation in the cluster: {iops_cassandra} allocated / {m*vm_IOPS[mt]} available"
+            f"Storage saturation: {size_cassandra} allocated / {params.MAX_SIZE*m}"
         )
-
         total_cost = problem.objective.value()
         print(
             f"TOTAL COST: {total_cost:.2f}\n"
@@ -426,7 +425,8 @@ for mt in costs_per_type:
         best_option = (mt, number, cost)
 
 print(
-    f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\nTOTAL COST --> {best_option[2]:.2f}€ PER HOUR \n"
+    f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\n"
+    f"TOTAL COST --> {best_option[2]:.2f}€/h\n"
 )
 # COST OF ONLY DYNAMO
 cost_dynamo = (
@@ -439,7 +439,12 @@ print(f"Cost of only DYNAMO: {cost_dynamo:.2f}€/h")
 # COST OF ONLY CASSANDRA
 best_cost_cassandra = inf
 for mt in range(len(vm_types)):
-    m = ceil(max(total_size / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[mt], 3))
+    vms_size = total_size * RF / params.MAX_SIZE
+    vms_io = (sum(t_r) + sum(t_w)) / vm_IOPS[mt]
+
+    m = ceil(
+        max(total_size * RF / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[mt], 3)
+    )
     cost = (
         m * vm_costs[mt]
         # Cassandra volumes baseline charge
@@ -457,7 +462,9 @@ for mt in range(len(vm_types)):
 print(
     f"Cost of only CASSANDRA: {best_cost_cassandra:.2f}€/h, "
     f"achieved with {best_n_cassandra} machines "
-    f"of type {vm_types[best_vm_cassandra]}"
+    f"of type {vm_types[best_vm_cassandra]}\n"
+    f"(min machines due to size: {vms_size} (->{ceil(vms_size)}))\n"
+    f"(min machines due to iops: {vms_io} (->{ceil(vms_io)}))\n"
 )
 
 print(
