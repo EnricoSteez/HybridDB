@@ -218,7 +218,9 @@ RF = params.REPLICATION_FACTOR
 x = pulp.LpVariable.dicts(
     "Placement",
     indices=[i for i in range(N)],
-    cat=constants.LpBinary,
+    cat=constants.LpContinuous,
+    lowBound=0,
+    upBound=1,
 )
 
 rng = default_rng()
@@ -301,80 +303,86 @@ for mt in range(len(vm_types)):
 
         result = problem.solve(solver)
 
-        items_cassandra = sum(x[i].value() for i in range(N))
-        items_dynamo = sum(1 - x[i].value() for i in range(N))
+        items_cassandra = sum(1 if x[i].value() > 0.5 else 0 for i in range(N))
+        items_dynamo = sum(1 if x[i].value() < 0.5 else 0 for i in range(N))
         print(
             f"Tot items on Cassandra: {int(items_cassandra)}\n"
-            f"Tot items on Dynamo: {int(items_dynamo)}"
+            f"Tot items on Dynamo: {int(items_dynamo)}\n"
+            f"Items Dynamo should be {N-items_cassandra} (for double check)"
         )
+
+        placement = [1 if x[i].value() > 0.5 else 0 for i in range(N)]
 
         # cost of Dynamo
         # 1 read unit every 8 KB (multiply the iops by size[MB]*1000/8)
         # 1 write unit every KB (multiply the iops by the size[MB]*1000 to obtain the units)
         cost_dynamo = (
-            sum((1 - x[i].value()) * s[i] for i in range(N)) * cost_storage
-            + sum((1 - x[i].value()) * (s[i] * 1000 / 8) * t_r[i] for i in range(N))
+            sum((1 - placement[i]) * s[i] for i in range(N)) * cost_storage
+            + sum((1 - placement[i]) * (s[i] * 1000 / 8) * t_r[i] for i in range(N))
             * 60
             * 60
             * cost_read
-            + sum((1 - x[i].value()) * s[i] * 1000 * t_w[i] for i in range(N))
+            + sum((1 - placement[i]) * s[i] * 1000 * t_w[i] for i in range(N))
             * 60
             * 60
             * cost_write
         )
         print(f"Cost of Dynamo (hybrid) = {cost_dynamo:.2f}€/h")
 
-        # cost of Cassandra
-        cost_iops = (
-            sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
-            * 60
-            * 60
-            * cost_volume_iops
-        )
-        cost_performance = (
-            sum(x[i].value() * (t_r[i] + t_w[i]) * s[i] for i in range(N))
-            * cost_volume_tp
-        )
-        cost_baseline = params.MAX_SIZE * m * cost_volume_storage
+        # # cost of Cassandra
+        # cost_iops = (
+        #     sum(placement[i] * (t_r[i] + t_w[i]) for i in range(N))
+        #     * 60
+        #     * 60
+        #     * cost_volume_iops
+        # )
+        # cost_performance = (
+        #     sum(placement[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+        #     * cost_volume_tp
+        # )
+        # cost_baseline = params.MAX_SIZE * m * cost_volume_storage
         # cost VMs + storage charge + iops charge + tp charge
         cost_cassandra = (
             m * vm_costs[mt]
             + params.MAX_SIZE * m * cost_volume_storage
-            + sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N))
+            + sum(placement[i] * (t_r[i] + t_w[i]) for i in range(N))
             * 60
             * 60
             * cost_volume_iops
-            + sum(x[i].value() * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+            + sum(placement[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N))
             * cost_volume_tp
         )
         print(
-            f"Cassandra machines = {m * vm_costs[mt]:.2f}\n"
-            f"Cassandra baseline = {cost_baseline:.2f}\n"
-            f"Cassandra iops = {cost_iops:.2f}\n"
-            f"Cassandra baseline = {cost_performance:.2f}\n"
+            # f"Cassandra machines = {m * vm_costs[mt]:.2f}\n"
+            # f"Cassandra baseline = {cost_baseline:.2f}\n"
+            # f"Cassandra iops = {cost_iops:.2f}\n"
+            # f"Cassandra baseline = {cost_performance:.2f}\n"
             f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h"
         )
 
-        iops_cassandra = int(sum(x[i].value() * (t_r[i] + t_w[i]) for i in range(N)))
+        iops_cassandra = sum(placement[i] * (t_r[i] + t_w[i]) for i in range(N))
         tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
 
         print(f"Percentage of items on Cassandra: {items_cassandra/N:.2%}")
         print(f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2%}")
-        size_cassandra = sum((x[i].value()) * s[i] for i in range(N))
+        size_cassandra = sum((placement[i]) * s[i] for i in range(N))
         print(
             f"Amount of data on Cassandra: {size_cassandra:.2f}/{total_size:.2f}"
             f" [MB] ({size_cassandra/total_size:.2%})"
         )
 
         total_cost = problem.objective.value()
-        print(f"TOTAL COST: {total_cost:.2f}\n")
+        print(
+            f"TOTAL COST: {total_cost:.2f}\n"
+            f"(Should be equal to {cost_dynamo+cost_cassandra:.2f})\n"
+        )
 
         if (
             total_cost < prev_cost and not fine_tuning_stage  # and items_cassandra != N
         ):  # total cost is decreasing and placement is still hybrid -> proceed normally
             prev_cost = total_cost
             best_cost = total_cost
-            best_placement = [x[i].value() for i in range(N)]
+            best_placement = placement
             best_machines = m
             prev_m = m
             m += machine_step
@@ -393,7 +401,7 @@ for mt in range(len(vm_types)):
             m += 1
             best_cost = total_cost
             prev_cost = total_cost
-            best_placement = [x[i].value() for i in range(N)]
+            best_placement = placement
 
         else:  # fine_tuning_stage phase, cost is increasing: best is previous
 
