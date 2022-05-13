@@ -19,7 +19,7 @@ N = 1000
 while N < 1000001:
     for a in range(1, 5):
         notify(f"Beginning zipfian N={N} a={a}")
-        with open(f"zipfian/{N}_{a}", "w") as file:
+        with open(f"zipfian/{N}_{a}.txt", "w") as file:
             for i in range(N):
                 n = zipfian.pmf(i + 1, a, N)
                 file.write(f"{n}\n")

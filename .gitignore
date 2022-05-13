@@ -11,3 +11,4 @@ writeStats.txt
 *.txt
 placement
 results/
+*.out
