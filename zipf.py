@@ -1,6 +1,8 @@
 from scipy.stats import zipfian
 import telegram
 import json
+import sys
+from os import path
 
 # import matplotlib.pyplot as plt
 # import numpy as np
@@ -15,17 +17,25 @@ def notify(message):
     bot.sendMessage(chat_id=chat_id, text=message)
 
 
-N = 1000
-while N < 1000001:
-    for a in range(1, 5):
-        notify(f"Beginning zipfian N={N} a={a}")
-        with open(f"zipfian/{N}_{a}.txt", "w") as file:
-            for i in range(N):
-                n = zipfian.pmf(i + 1, a, N)
-                file.write(f"{n}\n")
-            # file.truncate(file.tell() - 1)
-        notify(f"Finished zipfian N={N} a={a}")
-    N *= 10
+def main(N: int, a: int):
+    notify(f"Beginning zipfian N={N} a={a}")
+    with open(f"zipfian/{N}_{a}.txt", "w") as file:
+        for i in range(1, N + 1):
+            n = zipfian.pmf(i, a, N)
+            file.write(f"{n}\n")
+        # file.truncate(file.tell() - 1)
+    notify(f"Finished zipfian N={N} a={a}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: python3 {path.basename(__file__)} N a")
+        sys.exit(1)
+
+    N = int(sys.argv[1])
+    a = int(sys.argv[2])
+
+    main(N, a)
 
 # fig, ax = plt.subplots(1, 1)
 # N = 1e5
