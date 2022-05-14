@@ -28,7 +28,7 @@ def main(N: int, a: int):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         print(f"Usage: python3 {path.basename(__file__)} N a")
         sys.exit(1)
 
