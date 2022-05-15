@@ -250,7 +250,8 @@ message = (
     f"Optimisation id= {run_id}\n"
     f"N = {N:.0e}, {dist} distribution\n"
     f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
-    f"Items generation took: {strftime('%H:%M:%S',gmtime(t_items-t0))}\n"
+    # f"Items generation took: {strftime('%H:%M:%S',gmtime(t_items-t0))}\n"
+    # now probabilities are not generated anymore but retrieved from file
     "AWAITING TERMINATION"
 )
 threading.Thread(target=notify(message=message)).start()
