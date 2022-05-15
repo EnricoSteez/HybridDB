@@ -167,7 +167,6 @@ def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=2000
         s = [custom_size] * N
         t_r = []
         t_w = []
-        # rv = zipfian(a, N)
         with open(f"zipfian/{N}_{a}", "r") as file:
             for i in range(N):
                 prob = float(file.readline().split()[0])
