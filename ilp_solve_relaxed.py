@@ -192,16 +192,13 @@ def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=2000
 if len(sys.argv) < 3 or len(sys.argv) > 7:
     sys.exit(
         f"Usage: python3 {path.basename(__file__)} <N> <items_size [MB]> <tot_throughput> "
-        f"<uniform|ycsb|custom|java|zipfian> [TP_scale_factor|skew] outputFileName"
+        f"<uniform|ycsb|custom|java|zipfian> <TP_scale_factor|skew> outputFileName"
     )
 try:
     N = int(sys.argv[1])
     custom_size = float(sys.argv[2])
     max_throughput = int(sys.argv[3])
-    if len(sys.argv) == 5:
-        scalingFactor = float(sys.argv[5])
-    else:
-        scalingFactor = 1
+    scalingFactor = float(sys.argv[5])
 except ValueError:
     sys.exit("N, items_size, max_throughput and TPscaling must be numbers")
 
