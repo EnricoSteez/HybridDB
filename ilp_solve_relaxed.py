@@ -163,7 +163,7 @@ def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=2000
     elif distribution == "java":
         s, t_r, t_w = gather_data_java(scale)
     elif distribution == "zipfian":
-        a = scale
+        a = int(scale)
         s = [custom_size] * N
         t_r = []
         t_w = []
