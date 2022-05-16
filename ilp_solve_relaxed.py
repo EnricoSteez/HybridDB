@@ -460,7 +460,7 @@ print(
     f"of type {vm_types[best_vm_cassandra]}\n"
     f"(min machines due to size: {vms_size} (->{ceil(vms_size)}))\n"
     f"(min machines due to iops: {vms_io} (->{ceil(vms_io)}))\n"
-    f"(min machines due to iops: {vms_band} (->{ceil(vms_band)}))\n"
+    f"(min machines due to bandwidth: {vms_band} (->{ceil(vms_band)}))\n"
 )
 
 print(
