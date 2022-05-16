@@ -354,11 +354,11 @@ for mt in range(len(vm_types)):
         cost_cassandra = (
             m * vm_costs[mt]
             + params.MAX_SIZE * m * cost_volume_storage
-            + sum(placement[i] * (t_r[i] + t_w[i]) for i in range(N))
+            + sum(placement[i] * (t_r[i] + t_w[i] * RF) for i in range(N))
             * 60
             * 60
             * cost_volume_iops
-            + sum(placement[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+            + sum(placement[i] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
             * 60
             * 60
             * cost_volume_tp
@@ -439,9 +439,12 @@ for mt in range(len(vm_types)):
         # Cassandra volumes baseline charge
         + params.MAX_SIZE * m * cost_volume_storage
         # Cassandra volumes IOPS charge
-        + (sum(t_r) + sum(t_w)) * 60 * 60 * cost_volume_iops
+        + (sum(t_r) + sum(t_w) * RF) * 60 * 60 * cost_volume_iops
         # Cassandra volumes performance charge
-        + sum((t_r[i] + t_w[i]) * s[i] for i in range(N)) * 60 * 60 * cost_volume_tp
+        + sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+        * 60
+        * 60
+        * cost_volume_tp
     )
     if cost < best_cost_cassandra:
         best_cost_cassandra = cost
