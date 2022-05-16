@@ -433,8 +433,8 @@ print(f"Cost of only DYNAMO: {cost_dynamo:.2f}€/h")
 best_cost_cassandra = inf
 for mt in range(len(vm_types)):
     vms_size = total_size * RF / params.MAX_SIZE
-    vms_io = (sum(t_r) + sum(t_w)) / vm_IOPS[mt]
-    vms_band = (sum(t_r) + sum(t_w)) * total_size / vm_bandwidths[mt]
+    vms_io = (sum(t_r) + sum(t_w) * RF) / vm_IOPS[mt]
+    vms_band = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) / vm_bandwidths[mt]
 
     m = int(ceil(max(vms_size, vms_io, vms_band, 3)))
     cost = (
