@@ -260,7 +260,7 @@ threading.Thread(target=notify(message=message)).start()
 best_overall = inf
 
 for mt in range(len(vm_types)):
-    m = max(3, total_size / params.MAX_SIZE)
+    m = 3
     machine_step = 2
     fine_tuning_stage = False  # whether we are in the binary search phase or not
     best_cost = inf
