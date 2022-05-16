@@ -283,11 +283,11 @@ for mt in range(len(vm_types)):
             * cost_write
             + m * vm_costs[mt]
             + params.MAX_SIZE * m * cost_volume_storage
-            + lpSum(x[i] * (t_r[i] + t_w[i]) for i in range(N))
+            + lpSum(x[i] * (t_r[i] + t_w[i] * RF) for i in range(N))
             * 60
             * 60
             * cost_volume_iops
-            + lpSum(x[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+            + lpSum(x[i] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
             * 60
             * 60
             * cost_volume_tp,
@@ -371,14 +371,18 @@ for mt in range(len(vm_types)):
             f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h"
         )
 
-        iops_cassandra = sum(placement[i] * (t_r[i] + t_w[i]) for i in range(N))
-        tot_iops = sum(t_r[i] + t_w[i] for i in range(N))
-        size_cassandra = sum((placement[i]) * s[i] for i in range(N)) * RF
+        iops_cassandra = sum(placement[i] * (t_r[i] + t_w[i] * RF) for i in range(N))
+        mbs_cassandra = sum(
+            placement[i] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)
+        )
+        tot_iops = sum(t_r[i] + t_w[i] * RF for i in range(N))
+        size_cassandra = sum(placement[i] * s[i] for i in range(N)) * RF
         print(f"Amount of data on Cassandra: {size_cassandra:.2f} [MB]")
         print(
             f"Percentage of items on Cassandra: {items_cassandra/N:.2%}\n"
             f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2%}\n"
             f"IOPS saturation in the cluster: {iops_cassandra} allocated / {m*vm_IOPS[mt]} available\n"
+            f"Bandwidth saturation in the cluster: {mbs_cassandra} allocated / {m*vm_bandwidths[mt]} available\n"
             f"Storage saturation: {size_cassandra} allocated / {params.MAX_SIZE*m}"
         )
         total_cost = problem.objective.value()
@@ -430,10 +434,9 @@ best_cost_cassandra = inf
 for mt in range(len(vm_types)):
     vms_size = total_size * RF / params.MAX_SIZE
     vms_io = (sum(t_r) + sum(t_w)) / vm_IOPS[mt]
+    vms_band = (sum(t_r) + sum(t_w)) * total_size / vm_bandwidths[mt]
 
-    m = ceil(
-        max(total_size * RF / params.MAX_SIZE, (sum(t_r) + sum(t_w)) / vm_IOPS[mt], 3)
-    )
+    m = int(ceil(max(vms_size, vms_io, vms_band, 3)))
     cost = (
         m * vm_costs[mt]
         # Cassandra volumes baseline charge
@@ -457,6 +460,7 @@ print(
     f"of type {vm_types[best_vm_cassandra]}\n"
     f"(min machines due to size: {vms_size} (->{ceil(vms_size)}))\n"
     f"(min machines due to iops: {vms_io} (->{ceil(vms_io)}))\n"
+    f"(min machines due to iops: {vms_band} (->{ceil(vms_band)}))\n"
 )
 
 print(
