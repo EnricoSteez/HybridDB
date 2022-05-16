@@ -28,6 +28,7 @@ cost_volume_iops = params.COST_VOLUME_IOPS
 cost_volume_tp = params.COST_VOLUME_THROUGHPUT
 vm_types = params.vm_types
 vm_IOPS = params.vm_IOPS
+vm_bandwidths = params.vm_bandwidths
 vm_costs = params.vm_costs
 stability_period = params.WORKLOAD_STABILITY
 
@@ -297,9 +298,16 @@ for mt in range(len(vm_types)):
         # --------------------########## MEMORY ##########--------------------
         problem += lpSum([x[i] * s[i] for i in range(N)]) * RF <= params.MAX_SIZE * m
 
+        # assuming write all and read any
         # --------------------########## COMPUTATION POWER ##########--------------------
         problem += (
-            lpSum([x[i] * (t_r[i] + t_w[i]) for i in range(N)]) <= vm_IOPS[mt] * m
+            lpSum([x[i] * (t_r[i] + t_w[i] * RF) for i in range(N)]) <= vm_IOPS[mt] * m
+        )
+
+        # --------------------########## BANDWIDTH ##########--------------------
+        problem += (
+            lpSum([x[i] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)])
+            <= vm_bandwidths[mt] * m
         )
 
         result = problem.solve(solver)
