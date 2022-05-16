@@ -286,7 +286,10 @@ for mt in range(len(vm_types)):
             * 60
             * 60
             * cost_volume_iops
-            + lpSum(x[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N)) * cost_volume_tp,
+            + lpSum(x[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+            * 60
+            * 60
+            * cost_volume_tp,
             "Minimization of the total cost of the hybrid solution",
         )
 
@@ -348,6 +351,8 @@ for mt in range(len(vm_types)):
             * 60
             * cost_volume_iops
             + sum(placement[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+            * 60
+            * 60
             * cost_volume_tp
         )
         print(
@@ -428,7 +433,7 @@ for mt in range(len(vm_types)):
         # Cassandra volumes IOPS charge
         + (sum(t_r) + sum(t_w)) * 60 * 60 * cost_volume_iops
         # Cassandra volumes performance charge
-        + sum((t_r[i] + t_w[i]) * s[i] for i in range(N)) * cost_volume_tp
+        + sum((t_r[i] + t_w[i]) * s[i] for i in range(N)) * 60 * 60 * cost_volume_tp
     )
     if cost < best_cost_cassandra:
         best_cost_cassandra = cost
