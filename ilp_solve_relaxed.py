@@ -453,14 +453,17 @@ for mt in range(len(vm_types)):
         best_cost_cassandra = cost
         best_vm_cassandra = mt
         best_n_cassandra = m
+        best_vms_size = vms_size
+        best_vms_io = vms_io
+        best_vms_band = vms_band
 
 print(
     f"Cost of only CASSANDRA: {best_cost_cassandra:.2f}€/h, "
     f"achieved with {best_n_cassandra} machines "
     f"of type {vm_types[best_vm_cassandra]}\n"
-    f"(min machines due to size: {vms_size} (->{ceil(vms_size)}))\n"
-    f"(min machines due to iops: {vms_io} (->{ceil(vms_io)}))\n"
-    f"(min machines due to bandwidth: {vms_band} (->{ceil(vms_band)}))\n"
+    f"(min machines due to size: {best_vms_size} (->{ceil(best_vms_size)}))\n"
+    f"(min machines due to iops: {best_vms_io} (->{ceil(best_vms_io)}))\n"
+    f"(min machines due to bandwidth: {best_vms_band} (->{ceil(best_vms_band)}))\n"
 )
 
 print(
