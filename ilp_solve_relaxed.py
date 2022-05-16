@@ -263,7 +263,7 @@ for mt in range(len(vm_types)):
     m = max(3, total_size / params.MAX_SIZE)
     machine_step = 2
     fine_tuning_stage = False  # whether we are in the binary search phase or not
-    prev_cost = inf
+    best_cost = inf
     while True:
         print(f"Evaluating {m} machines of type {vm_types[mt]}")
         # Optimization Problem
@@ -374,7 +374,7 @@ for mt in range(len(vm_types)):
             f"(Should be equal to {cost_dynamo+cost_cassandra:.2f})\n"
         )
 
-        if total_cost < prev_cost:  # total cost is decreasing -> proceed normally
+        if total_cost < best_cost:  # total cost is decreasing -> proceed normally
             best_cost = total_cost
             best_placement = placement
             best_machines = m
