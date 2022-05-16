@@ -351,6 +351,7 @@ for mt in range(len(vm_types)):
         # )
         # cost_baseline = params.MAX_SIZE * m * cost_volume_storage
         # cost VMs + storage charge + iops charge + tp charge
+        # TODO DEBUG WHY COSTS ARE NOT CONSISTENT
         cost_cassandra = (
             m * vm_costs[mt]
             + params.MAX_SIZE * m * cost_volume_storage
