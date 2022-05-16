@@ -365,7 +365,7 @@ for mt in range(len(vm_types)):
         print(
             f"Percentage of items on Cassandra: {items_cassandra/N:.2%}\n"
             f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2%}\n"
-            f"IOPS saturation in the cluster: {iops_cassandra} allocated / {m*vm_IOPS[mt]} available"
+            f"IOPS saturation in the cluster: {iops_cassandra} allocated / {m*vm_IOPS[mt]} available\n"
             f"Storage saturation: {size_cassandra} allocated / {params.MAX_SIZE*m}"
         )
         total_cost = problem.objective.value()
