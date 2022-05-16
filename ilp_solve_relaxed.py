@@ -448,9 +448,9 @@ print(
 )
 
 tot_time = t_end - t_items
-print(f"Took {tot_time} seconds ")
+print(f"Took {tot_time:.2f} seconds ")
 if t_end - t0 > 60:
-    print(f"({int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s)\n")
+    print(f"({int((tot_time-(tot_time%60))/60)}min {int(tot_time%60)}s)")
 sys.stdout.close()
 sys.stdout = sys.__stdout__
 
