@@ -339,19 +339,19 @@ for mt in range(len(vm_types)):
         print(f"Cost of Dynamo (hybrid) = {cost_dynamo:.2f}€/h")
 
         # # cost of Cassandra
-        # cost_iops = (
-        #     sum(placement[i] * (t_r[i] + t_w[i]) for i in range(N))
-        #     * 60
-        #     * 60
-        #     * cost_volume_iops
-        # )
-        # cost_performance = (
-        #     sum(placement[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N))
-        #     * cost_volume_tp
-        # )
-        # cost_baseline = params.MAX_SIZE * m * cost_volume_storage
-        # cost VMs + storage charge + iops charge + tp charge
-        # TODO DEBUG WHY COSTS ARE NOT CONSISTENT
+        cost_iops = (
+            sum(placement[i] * (t_r[i] + t_w[i]) for i in range(N))
+            * 60
+            * 60
+            * cost_volume_iops
+        )
+        cost_performance = (
+            sum(placement[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N))
+            * cost_volume_tp
+        )
+        cost_baseline = params.MAX_SIZE * m * cost_volume_storage
+        # cost_cassandra = cost VMs + storage charge + iops charge + tp charge
+
         cost_cassandra = (
             m * vm_costs[mt]
             + params.MAX_SIZE * m * cost_volume_storage
