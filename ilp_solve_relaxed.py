@@ -298,7 +298,7 @@ for mt in range(len(vm_types)):
         # --------------------########## MEMORY ##########--------------------
         problem += lpSum([x[i] * s[i] for i in range(N)]) * RF <= params.MAX_SIZE * m
 
-        # assuming write all and read any
+        # assuming WRITE ALL, READ ANY CONSISTENCY
         # --------------------########## COMPUTATION POWER ##########--------------------
         problem += (
             lpSum([x[i] * (t_r[i] + t_w[i] * RF) for i in range(N)]) <= vm_IOPS[mt] * m
@@ -312,15 +312,15 @@ for mt in range(len(vm_types)):
 
         result = problem.solve(solver)
 
-        items_cassandra = sum(1 if x[i].value() > 0.5 else 0 for i in range(N))
-        items_dynamo = sum(1 if x[i].value() < 0.5 else 0 for i in range(N))
+        placement = [1 if x[i].value() > 0.5 else 0 for i in range(N)]
+
+        items_cassandra = sum(placement)
+        items_dynamo = N - items_cassandra
         print(
             f"Tot items on Cassandra: {int(items_cassandra)}\n"
             f"Tot items on Dynamo: {int(items_dynamo)}\n"
             f"Items Dynamo should be {N-items_cassandra} (for double check)"
         )
-
-        placement = [1 if x[i].value() > 0.5 else 0 for i in range(N)]
 
         # cost of Dynamo
         # 1 read unit every 8 KB (multiply the iops by size[MB]*1000/8)
@@ -338,19 +338,22 @@ for mt in range(len(vm_types)):
         )
         print(f"Cost of Dynamo (hybrid) = {cost_dynamo:.2f}€/h")
 
-        # # cost of Cassandra
-        cost_iops = (
-            sum(placement[i] * (t_r[i] + t_w[i]) for i in range(N))
-            * 60
-            * 60
-            * cost_volume_iops
-        )
-        cost_performance = (
-            sum(placement[i] * (t_r[i] + t_w[i]) * s[i] for i in range(N))
-            * cost_volume_tp
-        )
-        cost_baseline = params.MAX_SIZE * m * cost_volume_storage
-        # cost_cassandra = cost VMs + storage charge + iops charge + tp charge
+        # cost_vms = m * vm_costs[mt]
+        # cost_baseline = params.MAX_SIZE * m * cost_volume_storage
+        # cost_iops = (
+        #     sum(placement[i] * (t_r[i] + t_w[i] * RF) for i in range(N))
+        #     * 60
+        #     * 60
+        #     * cost_volume_iops
+        # )
+        # cost_performance = (
+        #     sum(placement[i] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+        #     * 60
+        #     * 60
+        #     * cost_volume_tp
+        # )
+
+        # cost_cassandra = cost_vms + cost_baseline + cost_iops + cost_performance
 
         cost_cassandra = (
             m * vm_costs[mt]
@@ -382,15 +385,12 @@ for mt in range(len(vm_types)):
         print(
             f"Percentage of items on Cassandra: {items_cassandra/N:.2%}\n"
             f"Percentage of iops on Cassandra: {iops_cassandra/tot_iops:.2%}\n"
-            f"IOPS saturation in the cluster: {iops_cassandra} allocated / {m*vm_IOPS[mt]} available\n"
-            f"Bandwidth saturation in the cluster: {mbs_cassandra} allocated / {m*vm_bandwidths[mt]} available\n"
-            f"Storage saturation: {size_cassandra} allocated / {params.MAX_SIZE*m}"
+            f"IOPS saturation in the cluster: {iops_cassandra} allocated / {m*vm_IOPS[mt]} available ({iops_cassandra/(m*vm_IOPS[mt]):.2%})\n"
+            f"Bandwidth saturation in the cluster: {mbs_cassandra} allocated / {m*vm_bandwidths[mt]} available ({mbs_cassandra/(m*vm_bandwidths[mt])})\n"
+            f"Storage saturation: {size_cassandra} allocated / {params.MAX_SIZE*m} available ({size_cassandra/(params.MAX_SIZE*m)})"
         )
-        total_cost = problem.objective.value()
-        print(
-            f"TOTAL COST: {total_cost:.2f}\n"
-            f"(Should be equal to {cost_dynamo+cost_cassandra:.2f})\n"
-        )
+        total_cost = cost_dynamo + cost_cassandra
+        print(f"TOTAL COST: {total_cost:.2f}\n")
 
         if total_cost < best_cost:  # total cost is decreasing -> proceed normally
             best_cost = total_cost
