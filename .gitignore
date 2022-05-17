@@ -5,6 +5,7 @@
 */target/
 keys/
 stats/
+zipfian/
 readStats.txt
 writeStats.txt
 *.tar.gz
