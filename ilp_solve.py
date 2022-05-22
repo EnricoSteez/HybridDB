@@ -240,7 +240,8 @@ costs_per_type = dict()
 target_items_per_type = []
 old_placement = [0] * N
 # print(f"Items: {s}")
-solver = pulp.getSolver("PULP_CBC_CMD")
+# solver = pulp.getSolver("PULP_CBC_CMD")
+solver = pulp.getSolver("GUROBI_CMD")
 run_id = uuid4()
 
 message = (

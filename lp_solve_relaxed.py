@@ -244,7 +244,7 @@ costs_per_type = dict()
 target_items_per_type = []
 old_placement = [0] * N
 # print(f"Items: {s}")
-solver = pulp.getSolver("PULP_CBC_CMD")
+solver = pulp.getSolver("GUROBI_CMD")
 run_id = uuid4()
 
 message = (
@@ -259,6 +259,7 @@ threading.Thread(target=notify(message=message)).start()
 # notify(message=message)
 
 best_overall = inf
+best_cost_cassandra = inf
 
 for mt in range(len(vm_types)):
     m = 3
@@ -266,7 +267,21 @@ for mt in range(len(vm_types)):
     fine_tuning_stage = False  # whether we are in the binary search phase or not
     best_cost = inf
     best_machines = -1
-    while True:
+    count_trials = 0
+
+    vms_size = total_size * RF / params.MAX_SIZE
+    vms_io = (sum(t_r) + sum(t_w) * RF) / vm_IOPS[mt]
+    vms_band = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) / vm_bandwidths[mt]
+
+    max_m = int(ceil(max(vms_size, vms_io, vms_band, 3)))
+    print("*" * 80)
+    print(
+        f"Analysing {vm_types[mt]} machines. Clusters will range from 3 to {max_m} nodes"
+    )
+    print("*" * 80)
+    print()
+
+    while m <= max_m:
         print(f"Evaluating {m} machines of type {vm_types[mt]}")
         # Optimization Problem
         problem = pulp.LpProblem("ItemsPlacement", pulp.LpMinimize)
@@ -317,11 +332,7 @@ for mt in range(len(vm_types)):
 
         for i in range(N):
             if x[i].value() != 0 and x[i].value() != 1:
-                print(
-                    f"Rounded item with TP {t_r[i]+t_w[i]}: "
-                    f"{x[i].value()}->{placement[i]}",
-                    end="|\n",
-                )
+                print(f"{x[i].value()}->{placement[i]}", end="|\n")
 
         items_cassandra = sum(placement)
         items_dynamo = N - items_cassandra
@@ -408,73 +419,49 @@ for mt in range(len(vm_types)):
             and cassandra_iops_saturation < 1
             and cassandra_storage_saturation < 1
         )
-
-        if (total_cost < best_cost or not feasible) and not fine_tuning_stage:
-            m += machine_step
-            if feasible:
-                print("Continuing due to decreasing cost, best is current")
+        if items_cassandra != N:
+            # total cost is decreasing or round up is not feasible -> increase m
+            if feasible and total_cost < best_cost:
                 best_cost = total_cost
+                best_placement = placement
                 best_machines = m
-                best_placement = [x[i].value() for i in range(N)]
-            else:
+                count_trials += 1
                 print(
-                    f"Skipping due to infeasibility, best is still {best_machines} machines"
+                    "Feasible solution: new best is current, increasing cost: continuing"
                 )
-            prev_feasible = feasible
-
-        elif (
-            not fine_tuning_stage
-        ):  # total cost is increasing and solution is feasible--> enter fine_tuning_stage phase to find the perfect m
-            fine_tuning_stage = True
-            # start by exploring linearly the last two unexplored sectors (to avoid skipping the min)
-            m = max(m - 2 * machine_step + 1, 3)
-            print(
-                f"Incresing cost with feasible solution: entering fine tuning stage with {m} machines\n"
-                f"Best feasible is {best_machines} machines"
-            )
-        elif (
-            total_cost < best_cost or not feasible
-        ):  # fine_tuning_stage phase, cost is still decreasing or solution is not feasible: increase m and keep exploring
+            else:
+                print("Solution is not feasible, skipping")
             m += 1
-            if feasible:
-                best_cost = total_cost
-                best_machines = m
-                best_placement = [x[i].value() for i in range(N)]
-                print(
-                    "Inside fine tuning: continuing due to feasibility with decreasing cost. Best is current configuration"
-                )
-            else:
-                print(
-                    f"Inside fine tuning: continuing due to INfeasibility. Best is {best_machines} machines"
-                )
-            prev_feasible = feasible
-        else:
-            # fine_tuning_stage phase, cost is increasing: and solution is feasible
-            print("STOP due to feasibility satisfied and increasing cost")
-            new_result = best_machines, best_cost
-            costs_per_type[mt] = new_result
-
+            print()
+        else:  # total cost is increasing and solution is feasible -->  best is previous
             print(
+                "All items on cassandra, will not explore bigger clusters.\n"
                 f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost of {best_cost:.2f}€/h"
             )
             print("-" * 80)
+            new_result = best_machines, best_cost
+            costs_per_type[mt] = new_result
             break
 
-        print()
-        #     # total cost is decreasing or round up is not feasible -> increase m
-        #     best_cost = total_cost
-        #     best_placement = placement
-        #     best_machines = m
-        #     m += 1
-        # else:  # total cost is increasing -->  best is previous
-        #     print(
-        #         f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost of {best_cost:.2f}€/h"
-        #     )
-        #     print("-" * 80)
-        #     new_result = best_machines, best_cost
-        #     costs_per_type[mt] = new_result
-        #     break
-
+    cost_only_cassandra = (
+        max_m * vm_costs[mt]
+        # Cassandra volumes baseline charge
+        + params.MAX_SIZE * max_m * cost_volume_storage
+        # Cassandra volumes IOPS charge
+        + (sum(t_r) + sum(t_w) * RF) * 60 * 60 * cost_volume_iops
+        # Cassandra volumes performance charge
+        + sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+        * 60
+        * 60
+        * cost_volume_tp
+    )
+    if cost_only_cassandra < best_cost_cassandra:
+        best_cost_cassandra = cost_only_cassandra
+        best_vm_cassandra = mt
+        best_n_cassandra = max_m
+        best_vms_size = vms_size
+        best_vms_io = vms_io
+        best_vms_band = vms_band
 
 t_end = time()
 print("FINAL RESULTS:")
@@ -492,7 +479,7 @@ print(
     f"BEST OPTION IS {vm_types[best_option[0]]}, CLUSTER OF {best_option[1]} MACHINES,\n"
     f"TOTAL COST --> {best_option[2]:.2f}€/h\n"
 )
-# COST OF ONLY DYNAMO
+# COST OF NON-HYBRID SOLUTIONS
 cost_dynamo = (
     total_size * cost_storage
     + sum((s[i] * 1000 / 8) * t_r[i] for i in range(N)) * 60 * 60 * cost_read
@@ -500,33 +487,6 @@ cost_dynamo = (
 )
 
 print(f"Cost of only DYNAMO: {cost_dynamo:.2f}€/h")
-# COST OF ONLY CASSANDRA
-best_cost_cassandra = inf
-for mt in range(len(vm_types)):
-    vms_size = total_size * RF / params.MAX_SIZE
-    vms_io = (sum(t_r) + sum(t_w) * RF) / vm_IOPS[mt]
-    vms_band = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) / vm_bandwidths[mt]
-
-    m = int(ceil(max(vms_size, vms_io, vms_band, 3)))
-    cost = (
-        m * vm_costs[mt]
-        # Cassandra volumes baseline charge
-        + params.MAX_SIZE * m * cost_volume_storage
-        # Cassandra volumes IOPS charge
-        + (sum(t_r) + sum(t_w) * RF) * 60 * 60 * cost_volume_iops
-        # Cassandra volumes performance charge
-        + sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
-        * 60
-        * 60
-        * cost_volume_tp
-    )
-    if cost < best_cost_cassandra:
-        best_cost_cassandra = cost
-        best_vm_cassandra = mt
-        best_n_cassandra = m
-        best_vms_size = vms_size
-        best_vms_io = vms_io
-        best_vms_band = vms_band
 
 print(
     f"Cost of only CASSANDRA: {best_cost_cassandra:.2f}€/h, "
