@@ -214,11 +214,7 @@ sys.stdout = open(filename, "w")
 RF = params.REPLICATION_FACTOR
 # Placement vector x
 x = pulp.LpVariable.dicts(
-    "Placement",
-    indices=[i for i in range(N)],
-    cat=constants.LpContinuous,
-    lowBound=0,
-    upBound=1,
+    "Placement", indices=[i for i in range(N)], cat=constants.LpBinary
 )
 
 rng = default_rng()
@@ -328,7 +324,7 @@ for mt in range(len(vm_types)):
 
         result = problem.solve(solver)
 
-        placement = [round(x[i].value()) for i in range(N)]
+        placement = [int(x[i].value()) for i in range(N)]
 
         for i in range(N):
             if x[i].value() != 0 and x[i].value() != 1:
@@ -358,23 +354,6 @@ for mt in range(len(vm_types)):
         )
         print(f"Cost of Dynamo (hybrid) = {cost_dynamo:.2f}€/h")
 
-        # cost_vms = m * vm_costs[mt]
-        # cost_baseline = params.MAX_SIZE * m * cost_volume_storage
-        # cost_iops = (
-        #     sum(placement[i] * (t_r[i] + t_w[i] * RF) for i in range(N))
-        #     * 60
-        #     * 60
-        #     * cost_volume_iops
-        # )
-        # cost_performance = (
-        #     sum(placement[i] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
-        #     * 60
-        #     * 60
-        #     * cost_volume_tp
-        # )
-
-        # cost_cassandra = cost_vms + cost_baseline + cost_iops + cost_performance
-
         cost_cassandra = (
             m * vm_costs[mt]
             + params.MAX_SIZE * m * cost_volume_storage
@@ -387,13 +366,7 @@ for mt in range(len(vm_types)):
             * 60
             * cost_volume_tp
         )
-        print(
-            # f"Cassandra machines = {m * vm_costs[mt]:.2f}\n"
-            # f"Cassandra baseline = {cost_baseline:.2f}\n"
-            # f"Cassandra iops = {cost_iops:.2f}\n"
-            # f"Cassandra baseline = {cost_performance:.2f}\n"
-            f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h"
-        )
+        print(f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h")
 
         iops_cassandra = sum(placement[i] * (t_r[i] + t_w[i] * RF) for i in range(N))
         mbs_cassandra = sum(
@@ -414,28 +387,16 @@ for mt in range(len(vm_types)):
         )
         total_cost = cost_dynamo + cost_cassandra
         print(f"TOTAL COST: {total_cost:.2f}")
-        feasible = (
-            cassandra_bandwidth_saturation < 1
-            and cassandra_iops_saturation < 1
-            and cassandra_storage_saturation < 1
-        )
-        if items_cassandra != N:
-            # total cost is decreasing or round up is not feasible -> increase m
-            if feasible and total_cost < best_cost:
-                best_cost = total_cost
-                best_placement = placement
-                best_machines = m
-                count_trials += 1
-                print(
-                    "Feasible solution: new best is current, increasing cost: continuing"
-                )
-            else:
-                print("Solution is not feasible, skipping")
+
+        if total_cost < best_cost:
+            # total cost is decreasing -> increase m
+            best_cost = total_cost
+            best_placement = placement
+            best_machines = m
+            count_trials += 1
             m += 1
-            print()
-        else:  # total cost is increasing and solution is feasible -->  best is previous
+        else:  # total cost is increasing -->  best is previous
             print(
-                "All items on cassandra, will not explore bigger clusters.\n"
                 f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost of {best_cost:.2f}€/h"
             )
             print("-" * 80)
