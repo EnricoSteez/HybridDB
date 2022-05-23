@@ -15,7 +15,7 @@ while skew <= 4:
                 f"Starting optimisation with N={N}, size={int(items_size) if items_size >= 1 else prettyprint}, max_tp={max_tp}, distribution: zipfian (skew={skew})"
             )
             os.system(
-                f"python3 ilp_solve.py {N} {items_size:.1f} {max_tp} zipfian {skew} results/{skew}/{N}_{items_size}MB_{max_tp}IOPS.txt"
+                f"python3 ilp_solve_clustersize.py {N} {items_size:.1f} {max_tp} zipfian {skew} results/{skew}/{N}_{int(items_size) if items_size >= 1 else prettyprint}MB_{max_tp}IOPS.txt"
             )
             # text = f"Optimisation finished: 10000 items, sizes={items_size}MB, tot tp = {max_tp}IO/s"
             # requests.get(
