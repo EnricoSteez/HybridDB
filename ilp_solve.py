@@ -4,6 +4,7 @@ from uuid import uuid4
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
+from sklearn.preprocessing import scale
 import params
 import numpy as np
 import sys
@@ -246,7 +247,8 @@ run_id = uuid4()
 
 message = (
     f"Optimisation id= {run_id}\n"
-    f"N = {N:.0e}, {dist} distribution\n"
+    f"N = {N:.0e}, {dist} distribution, skew={scalingFactor}\n"
+    f"size={s[0]}, max_tp = {t_r[0]+t_w[0]}, "
     f"Started on {strftime('%a at %H:%M:%S',gmtime(t0))}\n"
     # f"Items generation took: {strftime('%H:%M:%S',gmtime(t_items-t0))}\n"
     # now probabilities are not generated anymore but retrieved from file
