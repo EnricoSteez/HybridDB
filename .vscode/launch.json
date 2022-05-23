@@ -25,12 +25,12 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "1000",
+                "10000",
                 "10",
                 "200",
                 "zipfian",
-                "1",
-                "results/1000_10MB_200IOPS_1"
+                "2",
+                "results/10000_10MB_200IOPS_2.txt"
             ]
         }
     ]

@@ -374,6 +374,7 @@ for mt in range(len(vm_types)):
             placement[i] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)
         )
         tot_iops = sum(t_r[i] + t_w[i] * RF for i in range(N))
+        tot_mbs = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
         size_cassandra = sum(placement[i] * s[i] for i in range(N)) * RF
         cassandra_bandwidth_saturation = mbs_cassandra / (m * vm_bandwidths[mt])
         cassandra_iops_saturation = iops_cassandra / (m * vm_IOPS[mt])
@@ -382,14 +383,15 @@ for mt in range(len(vm_types)):
         print(
             f"Percentage of items on Cassandra: {items_cassandra/N:.2%}\n"
             f"Percentage of iops on Cassandra: {int(iops_cassandra)}/{int(tot_iops)}={iops_cassandra/tot_iops:.2%}\n"
-            f"IOPS saturation in the cluster: {int(iops_cassandra)} IOPS allocated / {int(m*vm_IOPS[mt])} IOPS available ({cassandra_iops_saturation:.2%})\n"
-            f"Bandwidth saturation in the cluster: {mbs_cassandra:.2f} (MB/s)/h allocated / {m*vm_bandwidths[mt]:.2f} (MB/s)/h available ({cassandra_bandwidth_saturation:.2%})\n"
+            f"Percentage of bandwidth on Cassandra: {mbs_cassandra:.1f}/{tot_mbs:.1f}={mbs_cassandra/tot_mbs:.2%}\n"
+            f"IOPS saturation in the cluster: {cassandra_iops_saturation:.2%}\n"
+            f"Bandwidth saturation in the cluster: {cassandra_bandwidth_saturation:.2%}\n"
             f"Storage saturation: {size_cassandra:.2f}MB allocated / {params.MAX_SIZE*m:.2f}MB available ({cassandra_storage_saturation:.2%})"
         )
         total_cost = cost_dynamo + cost_cassandra
-        print(f"TOTAL COST: {total_cost:.2f}")
+        print(f"TOTAL COST: {total_cost:.2f}\n")
 
-        if total_cost < best_cost:
+        if total_cost < best_cost or items_cassandra != N:
             # total cost is decreasing -> increase m
             best_cost = total_cost
             best_placement = placement
@@ -397,13 +399,14 @@ for mt in range(len(vm_types)):
             count_trials += 1
             m += 1
         else:  # total cost is increasing -->  best is previous
-            print(
-                f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost of {best_cost:.2f}€/h"
-            )
-            print("-" * 80)
-            new_result = best_machines, best_cost
-            costs_per_type[mt] = new_result
             break
+
+    print(
+        f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost of {best_cost:.2f}€/h"
+    )
+    print("-" * 80)
+    new_result = best_machines, best_cost
+    costs_per_type[mt] = new_result
 
     cost_only_cassandra = (
         max_m * vm_costs[mt]
