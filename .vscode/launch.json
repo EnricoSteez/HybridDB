@@ -32,6 +32,22 @@
                 "2",
                 "results/10000_10MB_200IOPS_2.txt"
             ]
+        },
+        {
+            "name": "Zipfian2",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "10000",
+                "10",
+                "200",
+                "zipfian",
+                "2",
+                "results/10000_10MB_200IOPS_2_v2.txt"
+            ]
         }
     ]
 }
