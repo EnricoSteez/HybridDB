@@ -7,9 +7,11 @@ N = 10000
 max_tp = 200
 items_size = 0.1
 prettyprint = "01"
-skew = 2
+skew = 1
 while skew <= 4:
+    max_tp = 200
     while max_tp <= 2000:
+        items_size = 0.1
         while items_size <= 1000:
             print(
                 f"Starting optimisation with N={N}, size={int(items_size) if items_size >= 1 else prettyprint}, max_tp={max_tp}, distribution: zipfian (skew={skew})"
