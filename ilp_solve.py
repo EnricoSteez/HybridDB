@@ -4,7 +4,6 @@ from uuid import uuid4
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
-from sklearn.preprocessing import scale
 import params
 import numpy as np
 import sys
@@ -266,7 +265,9 @@ for mt in range(len(vm_types)):
     fine_tuning_stage = False  # whether we are in the binary search phase or not
     best_cost = inf
     best_machines = -1
-    count_trials = 0
+    count_minimas = 0
+    prev_cost = inf
+    increasing_phase = False
 
     vms_size = total_size * RF / params.MAX_SIZE
     vms_io = (sum(t_r) + sum(t_w) * RF) / vm_IOPS[mt]
@@ -393,15 +394,24 @@ for mt in range(len(vm_types)):
         total_cost = cost_dynamo + cost_cassandra
         print(f"TOTAL COST: {total_cost:.2f}\n")
 
-        if total_cost < best_cost or items_cassandra != N:
-            # total cost is decreasing -> increase m
-            best_cost = total_cost
-            best_placement = placement
-            best_machines = m
-            count_trials += 1
+        if total_cost < prev_cost or increasing_phase:
+            if total_cost < prev_cost:
+                increasing_phase = False
+            # total cost is decreasing or cost is increasing for the first time
+            # (I haven't found the first minima yet) -> increase the number of VMs
+            if total_cost < best_cost:
+                best_cost = total_cost
+                best_placement = placement
+                best_machines = m
+
             m += 1
-        else:  # total cost is increasing -->  best is previous
-            break
+        else:  # total cost is increasing, enter increasing phase or exit if it's the second time it grows
+            if not increasing_phase:
+                increasing_phase = True
+            else:
+                break
+
+        prev_cost = total_cost
 
     print(
         f"Optimal cluster of type {vm_types[mt]} has {best_machines} machines, with a cost of {best_cost:.2f}€/h"
