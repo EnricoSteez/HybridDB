@@ -19,7 +19,7 @@ def notify(message):
 
 def main(N: int, a: int):
     notify(f"Beginning zipfian N={N} a={a}")
-    with open(f"zipfian/{N}_{a}.txt", "w") as file:
+    with open(f"zipfian/{N}_{a}", "w") as file:
         for i in range(1, N + 1):
             n = zipfian.pmf(i, a, N)
             file.write(f"{n}\n")

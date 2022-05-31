@@ -1,0 +1,357 @@
+from math import ceil
+import pulp as pulp
+from pulp import constants
+from pulp.pulp import lpSum
+import params
+import numpy as np
+import sys
+from time import time
+
+# from time import gmtime
+# from time import strftime
+import json
+import telegram
+from os import path
+
+# import threading
+from functools import partial
+
+print = partial(print, flush=True)
+
+cost_write = params.COST_DYNAMO_WRITE_UNIT
+cost_read = params.COST_DYNAMO_READ_UNIT
+cost_storage = params.COST_DYNAMO_STORAGE
+cost_volume_storage = params.COST_VOLUME_STORAGE  # per hour
+cost_volume_iops = params.COST_VOLUME_IOPS
+cost_volume_tp = params.COST_VOLUME_THROUGHPUT
+vm_types = params.vm_types
+vm_IOPS = params.vm_IOPS
+vm_bandwidths = params.vm_bandwidths
+vm_costs = params.vm_costs
+stability_period = params.WORKLOAD_STABILITY
+RF = params.REPLICATION_FACTOR
+
+
+def notify(message):
+    with open("./keys/keys.json", "r") as keys_file:
+        k = json.load(keys_file)
+        token = k["telegram_token"]
+        chat_id = k["telegram_chat_id"]
+    bot = telegram.Bot(token=token)
+    bot.sendMessage(chat_id=chat_id, text=message)
+
+
+def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=20000):
+    # ycsb: constant 100KB sizes = 0.1MB, zipfian throughputs
+    # uniform: everything uniformely distribuetd
+    # custom: sizes from ibm traces, throughputs from YCSB
+    # if distribution == "ycsb":
+    #     s = [custom_size] * N
+    #     t_r = gather_throughputs("readStats.txt", scale)
+    #     t_w = gather_throughputs("writeStats.txt", scale)
+
+    # elif distribution == "uniform":
+    #     # uniform distribution
+    #     # max size for DynamoDB is 400KB = 0.4MB
+    #     s = list((0.4 - 1) * np.random.rand(N) + 1)  # size in MB
+    #     t_r = np.random.rand(N) * 500 * scale
+    #     t_w = np.random.rand(N) * 500 * scale
+
+    # # sizes are IBM, throughputs are YCSB
+    # elif distribution == "custom":
+    #     s = gather_sizes_ibm()
+    #     t_r = gather_throughputs("readStats.txt", scale)
+    #     t_w = gather_throughputs("writeStats.txt", scale)
+
+    # elif distribution == "java":
+    #     s, t_r, t_w = gather_data_java(scale)
+    # elif distribution == "zipfian":
+    a = int(scale)
+    s = [custom_size] * N
+    t_r = []
+    t_w = []
+    with open(f"zipfian/{N}_{a}", "r") as file:
+        for i in range(N):
+            prob = float(file.readline().split()[0])
+            t_r.append(prob * max_throughput / 2)
+            t_w.append(prob * max_throughput / 2)
+
+    print(
+        f"Number of items: {len(s)}, max_size={max(s)}MB, min_size={min(s)}MB\n"
+        f"Throughputs scale: {scale}\n"
+        f"len(t_r): {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}\n"
+        f"len(t_w): {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}\n"
+    )
+    # print(s)
+    # print("SEPARATOR")
+    # print(t_r)
+    # print("SEPARATOR")
+    # print(t_w)
+    # print("SEPARATOR")
+    return s, t_r, t_w
+
+
+if len(sys.argv) < 3 or len(sys.argv) > 7:
+    sys.exit(
+        f"Usage: python3 {path.basename(__file__)} <N> <items_size [MB]> <tot_throughput> "
+        f"<uniform|ycsb|custom|java|zipfian> <TP_scale_factor|skew> outputFileName"
+    )
+try:
+    N = int(sys.argv[1])
+    custom_size = float(sys.argv[2])
+    max_throughput = int(sys.argv[3])
+    scalingFactor = float(sys.argv[5])
+except ValueError:
+    sys.exit("N, items_size, max_throughput and TPscaling must be numbers")
+
+
+dist = sys.argv[4]
+filename = sys.argv[6]
+allowed_dists = ["ycsb", "uniform", "custom", "java", "zipfian"]
+if dist not in allowed_dists:
+    raise ValueError(f'Distribution: "{dist}" is not allowed')
+
+sys.stdout = open(filename, "w")
+
+items = [i for i in range(N)]
+placements = [j for j in range(len(vm_types) + 1)]
+
+# Placement vector x
+x = pulp.LpVariable.dicts(
+    "Placement",
+    indices=(items, placements),
+    cat=constants.LpInteger,
+    lowBound=0,
+    upBound=1,
+)
+
+m = pulp.LpVariable.dicts(
+    "Number of machines per type",
+    indices=[i for i in range(len(vm_types))],
+    cat=constants.LpInteger,
+)
+z = pulp.LpVariable.dicts(
+    "Binary variables for m outside of 0..RF interval",
+    indices=[i for i in range(len(vm_types))],
+    cat=constants.LpBinary,
+)
+
+# sizes in MB, throughputs in ops/s
+s, t_r, t_w = generate_items(
+    distribution=dist,
+    scale=scalingFactor,
+    custom_size=custom_size,
+    max_throughput=max_throughput,
+)
+t0 = time()
+solver = pulp.getSolver("GUROBI_CMD")
+
+# Optimization Problem
+problem = pulp.LpProblem("ItemsPlacement", pulp.LpMinimize)
+
+# objective function
+problem += (
+    lpSum([x[i][0] * s[i] for i in range(N)]) * cost_storage
+    + lpSum([x[i][0] * t_r[i] * (s[i] * 1000 / 8) for i in range(N)])
+    * 60
+    * 60
+    * cost_read
+    + lpSum([x[i][0] * s[i] * 1000 * t_w[i] for i in range(N)]) * 60 * 60 * cost_write
+    + lpSum([m[i] * vm_costs[i] for i in range(len(vm_types))])
+    + params.MAX_SIZE
+    * lpSum([m[i] for i in range(len(vm_types))])
+    * cost_volume_storage
+    + lpSum(
+        x[i][j] * (t_r[i] + t_w[i] * RF)
+        for i in range(N)
+        for j in range(1, len(vm_types) + 1)
+    )
+    * 60
+    * 60
+    * cost_volume_iops
+    + lpSum(
+        x[i][j] * (t_r[i] + t_w[i] * RF) * s[i]
+        for i in range(N)
+        for j in range(1, len(vm_types) + 1)
+    )
+    * 60
+    * 60
+    * cost_volume_tp,
+    "Minimization of the total cost of the hybrid solution",
+)
+
+# constraints
+
+for j in range(1, len(vm_types) + 1):
+    # --------------------########## ENOUGH MEMORY ##########--------------------
+    # per each VM type, sum of all the items in that sub-cluster <= max_size * VMs(of that type)
+    problem += (
+        lpSum([x[i][j] * s[i] for i in range(N)]) * RF <= params.MAX_SIZE * m[j - 1]
+    )
+
+    # assuming WRITE ALL, READ ANY CONSISTENCY
+    # --------------------########## ENOUGH IOPS ##########--------------------
+    problem += (
+        lpSum([x[i][j] * (t_r[i] + t_w[i] * RF) for i in range(N)])
+        <= m[j - 1] * vm_IOPS[j - 1]
+    )
+
+    # --------------------########## ENOUGH BANDWIDTH ##########--------------------
+    problem += (
+        lpSum([x[i][j] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)])
+        <= m[j - 1] * vm_bandwidths[j - 1]
+    )
+
+    # --------------------########## AT LEAST 3 VMS PER TYPE ##########--------------------
+    # for k in range(1, RF):
+    #     problem += m[j - 1] != k
+    # problem += m[j - 1] != 1
+    # problem += m[j - 1] != 2
+    problem += m[j - 1] >= RF * z[j - 1]
+    problem += m[j - 1] <= 1e5 * z[j - 1]
+
+# --------------------########## ONLY ONE PLACEMENT ##########--------------------
+for i in range(N):
+    problem += lpSum([x[i][j] for j in range(len(vm_types) + 1)]) == 1
+
+result = problem.solve(solver)
+print(f"HYBRID COST -> {problem.objective.value()}")
+placement = np.ndarray((N, len(vm_types) + 1), dtype=int)
+for i in range(N):
+    for j in range(len(vm_types) + 1):
+        placement[i][j] = x[i][j].value()
+
+items_cassandra = placement[:, 1:].sum()  # all IaaS columns
+items_dynamo = placement[:, 1].sum()  # only first column
+print(
+    f"Tot items on Cassandra: {int(items_cassandra)}\n"
+    f"Tot items on Dynamo: {int(items_dynamo)}"
+)
+
+# cost of Dynamo
+# 1 read unit every 8 KB (multiply the iops by size[MB]*1000/8)
+# 1 write unit every KB (multiply the iops by the size[MB]*1000 to obtain the units)
+cost_dynamo = (
+    sum((1 - placement[i][0]) * s[i] for i in range(N)) * cost_storage
+    + sum((1 - placement[i][0]) * (s[i] * 1000 / 8) * t_r[i] for i in range(N))
+    * 60
+    * 60
+    * cost_read
+    + sum((1 - placement[i][0]) * s[i] * 1000 * t_w[i] for i in range(N))
+    * 60
+    * 60
+    * cost_write
+)
+print(f"Cost of Dynamo (hybrid) = {cost_dynamo:.2f}€/h")
+tot_vms = sum(m[j].value() for j in range(len(vm_types)))
+
+size_cassandra = sum(placement[i, 1:].sum() * s[i] for i in range(N)) * RF
+iops_cassandra = sum(placement[i, 1:].sum() * (t_r[i] + t_w[i] * RF) for i in range(N))
+mbs_cassandra = sum(
+    sum(placement[i, 1:]) * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)
+)
+tot_size = sum(s)
+tot_iops = sum(t_r[i] + t_w[i] * RF for i in range(N))
+tot_mbs = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+cassandra_storage_saturation = size_cassandra / (params.MAX_SIZE * tot_vms)
+cassandra_iops_saturation = iops_cassandra / sum(
+    m[j].value() * vm_IOPS[j] for j in range(len(vm_types))
+)
+cassandra_bandwidth_saturation = mbs_cassandra / sum(
+    m[j].value() * vm_bandwidths[j] for j in range(len(vm_types))
+)
+
+cost_cassandra = (
+    sum(m[j].value() * vm_costs[j] for j in range(len(vm_types)))  # cost VMs
+    + params.MAX_SIZE * tot_vms * cost_volume_storage  # cost provisioned MB
+    + iops_cassandra * 60 * 60 * cost_volume_iops  # cost IOPS
+    + mbs_cassandra * 60 * 60 * cost_volume_tp  # cost band
+)
+
+print(
+    f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h\n"
+    f"Amount of data on Cassandra: {size_cassandra:.2f} [MB]\n"
+    f"Percentage of items on Cassandra: {items_cassandra/N:.2%}\n"
+    f"Percentage of size on Cassandra: {size_cassandra/tot_size:.2%}\n"
+    f"Percentage of iops on Cassandra: {int(iops_cassandra)}/{int(tot_iops)}={iops_cassandra/tot_iops:.2%}\n"
+    f"Percentage of bandwidth on Cassandra: {mbs_cassandra:.1f}/{tot_mbs:.1f}={mbs_cassandra/tot_mbs:.2%}\n"
+    f"IOPS saturation of the whole cluster: {cassandra_iops_saturation:.2%}\n"
+    f"Bandwidth saturation of the whole cluster: {cassandra_bandwidth_saturation:.2%}\n"
+    f"Storage saturation: {size_cassandra:.2f}MB allocated / {params.MAX_SIZE * tot_vms:.2f}MB available ({cassandra_storage_saturation:.2%})\n"
+    f"Machines in use:\n"
+)
+for j in range(len(vm_types)):
+    print(f"{int(m[j].value())} {vm_types[j]}")
+
+print("-" * 80)
+
+best_cost_cassandra = np.inf
+for mt in range(len(vm_types)):
+    vms_size = tot_size * RF / params.MAX_SIZE
+    vms_io = (sum(t_r) + sum(t_w) * RF) / vm_IOPS[mt]
+    vms_band = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) / vm_bandwidths[mt]
+
+    min_m = int(ceil(max(vms_size, vms_io, vms_band, 3)))
+
+    cost_only_cassandra = (
+        min_m * vm_costs[mt]
+        # Cassandra volumes baseline charge
+        + params.MAX_SIZE * min_m * cost_volume_storage
+        # Cassandra volumes IOPS charge
+        + (sum(t_r) + sum(t_w) * RF) * 60 * 60 * cost_volume_iops
+        # Cassandra volumes performance charge
+        + sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+        * 60
+        * 60
+        * cost_volume_tp
+    )
+    if cost_only_cassandra < best_cost_cassandra:
+        best_cost_cassandra = cost_only_cassandra
+        best_vm_cassandra = mt
+        best_n_cassandra = min_m
+        best_vms_size = vms_size
+        best_vms_io = vms_io
+        best_vms_band = vms_band
+
+print("COMPARISON:")
+# COST OF NON-HYBRID SOLUTIONS
+cost_dynamo = (
+    tot_size * cost_storage
+    + sum((s[i] * 1000 / 8) * t_r[i] for i in range(N)) * 60 * 60 * cost_read
+    + sum(s[i] * 1000 * t_w[i] for i in range(N)) * 60 * 60 * cost_write
+)
+
+print(f"Cost of only DYNAMO: {cost_dynamo:.2f}€/h")
+
+print(
+    f"Cost of only CASSANDRA: {best_cost_cassandra:.2f}€/h, "
+    f"achieved with {best_n_cassandra} machines "
+    f"of type {vm_types[best_vm_cassandra]}\n"
+    f"(min machines due to size: {best_vms_size} (->{ceil(best_vms_size)}))\n"
+    f"(min machines due to iops: {best_vms_io} (->{ceil(best_vms_io)}))\n"
+    f"(min machines due to bandwidth: {best_vms_band} (->{ceil(best_vms_band)}))\n"
+)
+
+print(
+    f"Cost saving compared to best option: {min(cost_dynamo,best_cost_cassandra)-problem.objective.value():.2f} €/h"
+)
+
+tot_time = time() - t0
+print(f"Took {tot_time:.2f} seconds ")
+
+sys.stdout.close()
+sys.stdout = sys.__stdout__
+
+# message = (
+#     f"N = {N},\n"
+#     f"Diverse cluster\n"
+#     f"Optimisation took: {strftime('%H:%M:%S',gmtime(tot_time))}\n"
+#     f"See {filename} for detailed info"
+# )
+# threading.Thread(target=notify(message=message)).start()
+
+# with open("placement", "wb") as file:
+#     for num in best_placement:
+#         file.write(bytes([int(num)]))
+
+# system("pmset sleepnow")
