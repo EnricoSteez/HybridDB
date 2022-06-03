@@ -1,4 +1,3 @@
-# import requests
 import os
 import sys
 import requests
@@ -31,7 +30,7 @@ for percent_read in [0.9, 0.95, 0.99]:
                 ):
                     sys.exit("Error, stopping")
 tot_time = time() - t0
-message = f"Tutto finito! Did {count} optimisations, it took me {strftime('%H:%M:%S',gmtime(tot_time))}!"
+message = f"Tutto finito! Did {count} optimisations out of 756, it took me {strftime('%H:%M:%S',gmtime(tot_time))}!"
 requests.get(
     f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={urllib.parse.quote(message)}&disable_notification=True"
 )
