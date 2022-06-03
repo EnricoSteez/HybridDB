@@ -24,7 +24,7 @@ for percent_read in [0.9, 0.95, 0.99]:
                     != 0
                 ):
                     sys.exit("Error, stopping")
-message = "Optimisation at angainor finished, hurray!"
+message = "Tutto finito!"
 requests.get(
     f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={urllib.parse.quote(message)}&disable_notification=True"
 )
