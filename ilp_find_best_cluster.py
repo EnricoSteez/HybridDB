@@ -366,7 +366,7 @@ saving = best_no_hybrid - cost_hybrid
 print(f"Cost saving compared to best option: {saving/best_no_hybrid:.2%} €/h")
 if saving != 0:
     print(f"Cost savinf percentage: {saving/best_no_hybrid:.2f}")
-    with open("results/hybridScenarios.txt", "wa") as file:
+    with open("results/hybridScenarios.txt", "a") as file:
         file.write(f"{filename} -> {saving/best_no_hybrid:.2%}\n")
 
 tot_time = time() - t0
