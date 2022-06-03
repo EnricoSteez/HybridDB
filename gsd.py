@@ -1,6 +1,8 @@
 # import requests
 import os
 import sys
+import requests
+import urllib.parse
 
 token = "5187998346:AAFPwXQsNR1EQi2e7osOswEsFHAjDxiTpMk"
 chat_id = "907706827"
@@ -22,7 +24,7 @@ for percent_read in [0.9, 0.95, 0.99]:
                     != 0
                 ):
                     sys.exit("Error, stopping")
-
-                print("Finished")
-                url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={message}&disable_notification=True"
-                os.system(f"curl {url}")
+message = "Optimisation at angainor finished, hurray!"
+requests.get(
+    f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={urllib.parse.quote(message)}&disable_notification=True"
+)
