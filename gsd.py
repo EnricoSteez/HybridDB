@@ -12,11 +12,12 @@ for percent_read in [0.9, 0.95, 0.99]:
                 message = (
                     f"Starting optimisation: N={N}, items_size={items_size}, ",
                     f"tot_tp={tot_tp}, distribution: zipfian (skew={skew})",
+                    f"reads: {percent_read:.1%}",
                 )
                 print(message)
                 if (
                     os.system(
-                        f"python3 ilp_find_best_cluster.py {N} {items_size} {tot_tp} zipfian {skew}"
+                        f"python3 ilp_find_best_cluster.py {N} {items_size} {tot_tp} zipfian {skew} {percent_read}"
                     )
                     != 0
                 ):
