@@ -364,7 +364,7 @@ best_no_hybrid = min(cost_dynamo, best_cost_cassandra)
 cost_hybrid = problem.objective.value()
 saving = best_no_hybrid - cost_hybrid
 print(f"Cost saving compared to best option: {saving/best_no_hybrid:.2%} €/h")
-if best_no_hybrid - cost_hybrid != 0:
+if saving != 0:
     print(f"Cost savinf percentage: {saving/best_no_hybrid:.2f}")
     with open("results/hybridScenarios.txt", "wa") as file:
         file.write(f"{filename} -> {saving/best_no_hybrid:.2%}\n")
