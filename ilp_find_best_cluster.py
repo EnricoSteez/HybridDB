@@ -31,9 +31,6 @@ vm_costs = params.vm_costs
 stability_period = params.WORKLOAD_STABILITY
 RF = params.REPLICATION_FACTOR
 
-read_percent = params.read_percent
-write_percent = 1 - read_percent
-
 
 def notify(message):
     with open("./keys/keys.json", "r") as keys_file:
@@ -94,16 +91,18 @@ def generate_items(distribution, skew=1.0, custom_size=0.1, max_throughput=20000
     return s, t_r, t_w
 
 
-if len(sys.argv) != 6:
+if len(sys.argv) != 7:
     sys.exit(
         f"Usage: python3 {path.basename(__file__)} <N> <items_size [MB]> <tot_throughput> "
-        f"<uniform|ycsb|custom|java|zipfian> <skew>"
+        f"<uniform|ycsb|custom|java|zipfian> <skew> <read %>"
     )
 try:
     N = int(sys.argv[1])
     custom_size = float(sys.argv[2])
     max_throughput = float(sys.argv[3])
     skew = float(sys.argv[5])
+    read_percent = float(sys.argv[6])
+    write_percent = 1 - read_percent
 except ValueError:
     sys.exit("N, items_size, max_throughput and TPscaling must be numbers")
 
@@ -111,6 +110,7 @@ dist = sys.argv[4]
 size_for_filename = str(custom_size)
 throughput_for_filename = str(max_throughput)
 skew_for_filename = str(skew)
+read_percent_filename = str(read_percent)
 # if integer, remove .0 else replace dot with comma
 if custom_size.is_integer():
     size_for_filename = size_for_filename[:-2]
@@ -125,6 +125,8 @@ if skew.is_integer():
 else:
     skew_for_filename = skew_for_filename.replace(".", ",")
 
+# this one is always decimal ehehe
+read_percent_filename = read_percent_filename.replace(".", ",")
 
 filename = (
     f"results/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}.txt"
