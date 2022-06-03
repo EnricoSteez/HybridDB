@@ -31,6 +31,9 @@ vm_costs = params.vm_costs
 stability_period = params.WORKLOAD_STABILITY
 RF = params.REPLICATION_FACTOR
 
+read_percent = params.read_percent
+write_percent = 1 - read_percent
+
 
 def notify(message):
     with open("./keys/keys.json", "r") as keys_file:
@@ -41,7 +44,7 @@ def notify(message):
     bot.sendMessage(chat_id=chat_id, text=message)
 
 
-def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=20000):
+def generate_items(distribution, skew=1.0, custom_size=0.1, max_throughput=20000):
     # ycsb: constant 100KB sizes = 0.1MB, zipfian throughputs
     # uniform: everything uniformely distribuetd
     # custom: sizes from ibm traces, throughputs from YCSB
@@ -66,21 +69,21 @@ def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=2000
     # elif distribution == "java":
     #     s, t_r, t_w = gather_data_java(scale)
     # elif distribution == "zipfian":
-    a = int(scale)
     s = [custom_size] * N
     t_r = []
     t_w = []
-    with open(f"zipfian/{N}_{a}", "r") as file:
+    with open(f"zipfian/{N}_{int(skew)}", "r") as file:
         for i in range(N):
             prob = float(file.readline().split()[0])
-            t_r.append(prob * max_throughput / 2)
-            t_w.append(prob * max_throughput / 2)
+            t_r.append(prob * max_throughput * read_percent)
+            t_w.append(prob * max_throughput * write_percent)
 
     print(
         f"Number of items: {len(s)}, max_size={max(s)}MB, min_size={min(s)}MB\n"
-        f"Throughputs scale: {scale}\n"
-        f"len(t_r): {len(t_r)}, max(t_r)={max(t_r)}, min(t_r)={min(t_r)}\n"
-        f"len(t_w): {len(t_w)}, max(t_w)={max(t_w)}, min(t_w)={min(t_w)}\n"
+        f"{distribution} distribution, skew={skew}\n"
+        f"throughput read: max={max(t_r)}, min={min(t_r)}\n"
+        f"throughput write: max={max(t_w)}, min={min(t_w)}\n"
+        f"Access ratio: {read_percent:.0%} reads | {write_percent:.0%} writes"
     )
     # print(s)
     # print("SEPARATOR")
@@ -91,22 +94,41 @@ def generate_items(distribution, scale=1.0, custom_size=0.1, max_throughput=2000
     return s, t_r, t_w
 
 
-if len(sys.argv) < 3 or len(sys.argv) > 7:
+if len(sys.argv) != 6:
     sys.exit(
         f"Usage: python3 {path.basename(__file__)} <N> <items_size [MB]> <tot_throughput> "
-        f"<uniform|ycsb|custom|java|zipfian> <TP_scale_factor|skew> outputFileName"
+        f"<uniform|ycsb|custom|java|zipfian> <skew>"
     )
 try:
     N = int(sys.argv[1])
     custom_size = float(sys.argv[2])
-    max_throughput = int(sys.argv[3])
-    scalingFactor = float(sys.argv[5])
+    max_throughput = float(sys.argv[3])
+    skew = float(sys.argv[5])
 except ValueError:
     sys.exit("N, items_size, max_throughput and TPscaling must be numbers")
 
-
 dist = sys.argv[4]
-filename = sys.argv[6]
+size_for_filename = str(custom_size)
+throughput_for_filename = str(max_throughput)
+skew_for_filename = str(skew)
+# if integer, remove .0 else replace dot with comma
+if custom_size.is_integer():
+    size_for_filename = size_for_filename[:-2]
+else:
+    size_for_filename = size_for_filename.replace(".", ",")
+if max_throughput.is_integer():
+    throughput_for_filename = throughput_for_filename[:-2]
+else:
+    throughput_for_filename = throughput_for_filename.replace(".", ",")
+if skew.is_integer():
+    skew_for_filename = skew_for_filename[:-2]
+else:
+    skew_for_filename = skew_for_filename.replace(".", ",")
+
+
+filename = (
+    f"results/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}.txt"
+)
 allowed_dists = ["ycsb", "uniform", "custom", "java", "zipfian"]
 if dist not in allowed_dists:
     raise ValueError(f'Distribution: "{dist}" is not allowed')
@@ -139,7 +161,7 @@ z = pulp.LpVariable.dicts(
 # sizes in MB, throughputs in ops/s
 s, t_r, t_w = generate_items(
     distribution=dist,
-    scale=scalingFactor,
+    skew=skew,
     custom_size=custom_size,
     max_throughput=max_throughput,
 )
@@ -202,27 +224,24 @@ for j in range(1, len(vm_types) + 1):
         <= m[j - 1] * vm_bandwidths[j - 1]
     )
 
-    # --------------------########## AT LEAST 3 VMS PER TYPE ##########--------------------
-    # for k in range(1, RF):
-    #     problem += m[j - 1] != k
-    # problem += m[j - 1] != 1
-    # problem += m[j - 1] != 2
+    # --------------------########## EITHER VMs=0 OR VMs>=RF (PER TYPE), linearization ##########--------------------
     problem += m[j - 1] >= RF * z[j - 1]
     problem += m[j - 1] <= 1e5 * z[j - 1]
 
 # --------------------########## ONLY ONE PLACEMENT ##########--------------------
 for i in range(N):
     problem += lpSum([x[i][j] for j in range(len(vm_types) + 1)]) == 1
+    # problem += x[i][0] == 1
 
 result = problem.solve(solver)
-print(f"HYBRID COST -> {problem.objective.value()}")
+print(f"HYBRID COST -> {problem.objective.value():.2f}€")
 placement = np.ndarray((N, len(vm_types) + 1), dtype=int)
 for i in range(N):
     for j in range(len(vm_types) + 1):
         placement[i][j] = x[i][j].value()
 
 items_cassandra = placement[:, 1:].sum()  # all IaaS columns
-items_dynamo = placement[:, 1].sum()  # only first column
+items_dynamo = placement[:, 0].sum()  # only first column
 print(
     f"Tot items on Cassandra: {int(items_cassandra)}\n"
     f"Tot items on Dynamo: {int(items_dynamo)}"
@@ -231,18 +250,27 @@ print(
 # cost of Dynamo
 # 1 read unit every 8 KB (multiply the iops by size[MB]*1000/8)
 # 1 write unit every KB (multiply the iops by the size[MB]*1000 to obtain the units)
-cost_dynamo = (
-    sum((1 - placement[i][0]) * s[i] for i in range(N)) * cost_storage
-    + sum((1 - placement[i][0]) * (s[i] * 1000 / 8) * t_r[i] for i in range(N))
+cost_dynamo_storage = sum(placement[i][0] * s[i] for i in range(N)) * cost_storage
+cost_dynamo_reads = (
+    sum(placement[i][0] * (s[i] * 1000 / 8) * t_r[i] for i in range(N))
     * 60
     * 60
     * cost_read
-    + sum((1 - placement[i][0]) * s[i] * 1000 * t_w[i] for i in range(N))
+)
+cost_dynamo_writes = (
+    sum(placement[i][0] * (s[i] * 1000) * t_w[i] for i in range(N))
     * 60
     * 60
     * cost_write
 )
-print(f"Cost of Dynamo (hybrid) = {cost_dynamo:.2f}€/h")
+
+cost_dynamo = cost_dynamo_storage + cost_dynamo_reads + cost_dynamo_writes
+print(
+    f"Cost of Dynamo storage (hybrid) = {cost_dynamo_storage:.2f}€/h\n"
+    f"Cost of Dynamo reads (hybrid) = {cost_dynamo_reads:.2f}€/h\n"
+    f"Cost of Dynamo writes (hybrid) = {cost_dynamo_writes:.2f}€/h\n"
+    f"Total Cost of Dynamo (hybrid) = {cost_dynamo:.2f}€/h"
+)
 tot_vms = sum(m[j].value() for j in range(len(vm_types)))
 
 size_cassandra = sum(placement[i, 1:].sum() * s[i] for i in range(N)) * RF
@@ -253,13 +281,10 @@ mbs_cassandra = sum(
 tot_size = sum(s)
 tot_iops = sum(t_r[i] + t_w[i] * RF for i in range(N))
 tot_mbs = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
-cassandra_storage_saturation = size_cassandra / (params.MAX_SIZE * tot_vms)
-cassandra_iops_saturation = iops_cassandra / sum(
-    m[j].value() * vm_IOPS[j] for j in range(len(vm_types))
-)
-cassandra_bandwidth_saturation = mbs_cassandra / sum(
-    m[j].value() * vm_bandwidths[j] for j in range(len(vm_types))
-)
+available_size = params.MAX_SIZE * tot_vms
+available_iops = sum(m[j].value() * vm_IOPS[j] for j in range(len(vm_types)))
+available_bandwidth = sum(m[j].value() * vm_bandwidths[j] for j in range(len(vm_types)))
+
 
 cost_cassandra = (
     sum(m[j].value() * vm_costs[j] for j in range(len(vm_types)))  # cost VMs
@@ -268,18 +293,19 @@ cost_cassandra = (
     + mbs_cassandra * 60 * 60 * cost_volume_tp  # cost band
 )
 
-print(
-    f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h\n"
-    f"Amount of data on Cassandra: {size_cassandra:.2f} [MB]\n"
-    f"Percentage of items on Cassandra: {items_cassandra/N:.2%}\n"
-    f"Percentage of size on Cassandra: {size_cassandra/tot_size:.2%}\n"
-    f"Percentage of iops on Cassandra: {int(iops_cassandra)}/{int(tot_iops)}={iops_cassandra/tot_iops:.2%}\n"
-    f"Percentage of bandwidth on Cassandra: {mbs_cassandra:.1f}/{tot_mbs:.1f}={mbs_cassandra/tot_mbs:.2%}\n"
-    f"IOPS saturation of the whole cluster: {cassandra_iops_saturation:.2%}\n"
-    f"Bandwidth saturation of the whole cluster: {cassandra_bandwidth_saturation:.2%}\n"
-    f"Storage saturation: {size_cassandra:.2f}MB allocated / {params.MAX_SIZE * tot_vms:.2f}MB available ({cassandra_storage_saturation:.2%})\n"
-    f"Machines in use:\n"
-)
+print(f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h\n")
+if tot_vms != 0 and iops_cassandra != 0 and size_cassandra != 0 and mbs_cassandra != 0:
+    cassandra_storage_saturation = size_cassandra / available_size
+    cassandra_iops_saturation = iops_cassandra / available_iops
+    cassandra_bandwidth_saturation = mbs_cassandra / available_bandwidth
+
+    print(
+        f"IOPS saturation of the whole cluster: {cassandra_iops_saturation:.2%}\n"
+        f"Bandwidth saturation of the whole cluster: {cassandra_bandwidth_saturation:.2%}\n"
+        f"Storage saturation: {size_cassandra:.2f}MB allocated / {params.MAX_SIZE * tot_vms:.2f}MB available ({cassandra_storage_saturation:.2%})\n"
+    )
+
+print("Machines in use:")
 for j in range(len(vm_types)):
     print(f"{int(m[j].value())} {vm_types[j]}")
 
@@ -313,7 +339,7 @@ for mt in range(len(vm_types)):
         best_vms_io = vms_io
         best_vms_band = vms_band
 
-print("COMPARISON:")
+print("COMPARISON with non-hybrid approaches:")
 # COST OF NON-HYBRID SOLUTIONS
 cost_dynamo = (
     tot_size * cost_storage
@@ -331,10 +357,12 @@ print(
     f"(min machines due to iops: {best_vms_io} (->{ceil(best_vms_io)}))\n"
     f"(min machines due to bandwidth: {best_vms_band} (->{ceil(best_vms_band)}))\n"
 )
-
-print(
-    f"Cost saving compared to best option: {min(cost_dynamo,best_cost_cassandra)-problem.objective.value():.2f} €/h"
-)
+print("-" * 80)
+best_no_hybrid = min(cost_dynamo, best_cost_cassandra)
+cost_hybrid = problem.objective.value()
+print(f"Cost saving compared to best option: {best_no_hybrid-cost_hybrid:.2f} €/h")
+if best_no_hybrid - cost_hybrid != 0:
+    print(f"Cost savinf percentage: {(best_no_hybrid-cost_hybrid)/best_no_hybrid:.2f}")
 
 tot_time = time() - t0
 print(f"Took {tot_time:.2f} seconds ")

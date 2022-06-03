@@ -91,3 +91,5 @@ vm_costs = [
 COST_VOLUME_STORAGE = 0.0924 / 30 / 24 / 1e3  # per MB per hour
 COST_VOLUME_IOPS = 0.0058 / 30 / 24  # per IOPS-hour
 COST_VOLUME_THROUGHPUT = 0.0462 / 30 / 24  # $ per MB/s per hour
+
+read_percent = 0.95
