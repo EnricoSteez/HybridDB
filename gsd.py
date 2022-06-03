@@ -3,10 +3,14 @@ import os
 import sys
 import requests
 import urllib.parse
+from time import time
+from time import gmtime
+from time import strftime
 
 token = "5187998346:AAFPwXQsNR1EQi2e7osOswEsFHAjDxiTpMk"
 chat_id = "907706827"
 N = 1000
+t0 = time()
 for percent_read in [0.9, 0.95, 0.99]:
     for skew in [1, 2, 3, 4]:
         for tot_tp in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
@@ -24,7 +28,8 @@ for percent_read in [0.9, 0.95, 0.99]:
                     != 0
                 ):
                     sys.exit("Error, stopping")
-message = "Tutto finito!"
+tot_time = time() - t0
+message = f"Tutto finito, it took {strftime('%H:%M:%S',gmtime(tot_time))}!"
 requests.get(
     f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={urllib.parse.quote(message)}&disable_notification=True"
 )
