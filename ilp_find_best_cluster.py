@@ -128,9 +128,7 @@ else:
 # this one is always decimal ehehe
 read_percent_filename = read_percent_filename.replace(".", ",")
 
-filename = (
-    f"results/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}.txt"
-)
+filename = f"results/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}_r{read_percent_filename}.txt"
 allowed_dists = ["ycsb", "uniform", "custom", "java", "zipfian"]
 if dist not in allowed_dists:
     raise ValueError(f'Distribution: "{dist}" is not allowed')
@@ -267,6 +265,7 @@ cost_dynamo_writes = (
 )
 
 cost_dynamo = cost_dynamo_storage + cost_dynamo_reads + cost_dynamo_writes
+cost_dynamo = round(cost_dynamo, 2)
 print(
     f"Cost of Dynamo storage (hybrid) = {cost_dynamo_storage:.2f}€/h\n"
     f"Cost of Dynamo reads (hybrid) = {cost_dynamo_reads:.2f}€/h\n"
@@ -287,13 +286,21 @@ available_size = params.MAX_SIZE * tot_vms
 available_iops = sum(m[j].value() * vm_IOPS[j] for j in range(len(vm_types)))
 available_bandwidth = sum(m[j].value() * vm_bandwidths[j] for j in range(len(vm_types)))
 
-
+cost_cassandra_vms = sum(
+    m[j].value() * vm_costs[j] for j in range(len(vm_types))
+)  # cost VMs
+cost_cassandra_volume = (
+    params.MAX_SIZE * tot_vms * cost_volume_storage
+)  # cost provisioned MB
+cost_cassandra_iops = iops_cassandra * 60 * 60 * cost_volume_iops  # cost IOPS
+cost_cassandra_band = mbs_cassandra * 60 * 60 * cost_volume_tp  # cost band
 cost_cassandra = (
-    sum(m[j].value() * vm_costs[j] for j in range(len(vm_types)))  # cost VMs
-    + params.MAX_SIZE * tot_vms * cost_volume_storage  # cost provisioned MB
-    + iops_cassandra * 60 * 60 * cost_volume_iops  # cost IOPS
-    + mbs_cassandra * 60 * 60 * cost_volume_tp  # cost band
+    cost_cassandra_vms
+    + cost_cassandra_volume
+    + cost_cassandra_iops
+    + cost_cassandra_band
 )
+cost_cassandra = round(cost_cassandra, 2)
 
 print(f"Cost of Cassandra (hybrid) = {cost_cassandra:.2f}€/h\n")
 if tot_vms != 0 and iops_cassandra != 0 and size_cassandra != 0 and mbs_cassandra != 0:
@@ -335,12 +342,22 @@ for mt in range(len(vm_types)):
     )
     if cost_only_cassandra < best_cost_cassandra:
         best_cost_cassandra = cost_only_cassandra
+        only_cassandra_vms = min_m * vm_costs[mt]
+        only_cassandra_volume = params.MAX_SIZE * min_m * cost_volume_storage
+        only_cassandra_iops = (sum(t_r) + sum(t_w) * RF) * 60 * 60 * cost_volume_iops
+        only_cassandra_band = (
+            sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+            * 60
+            * 60
+            * cost_volume_tp
+        )
         best_vm_cassandra = mt
         best_n_cassandra = min_m
         best_vms_size = vms_size
         best_vms_io = vms_io
         best_vms_band = vms_band
 
+best_cost_cassandra = round(best_cost_cassandra, 2)
 print("COMPARISON with non-hybrid approaches:")
 # COST OF NON-HYBRID SOLUTIONS
 cost_dynamo = (
@@ -349,7 +366,9 @@ cost_dynamo = (
     + sum(s[i] * 1000 * t_w[i] for i in range(N)) * 60 * 60 * cost_write
 )
 
-print(f"Cost of only DYNAMO: {cost_dynamo:.2f}€/h")
+cost_dynamo = round(cost_dynamo, 2)
+
+print(f"Cost of only DYNAMO: {cost_dynamo}€/h")
 
 print(
     f"Cost of only CASSANDRA: {best_cost_cassandra:.2f}€/h, "
@@ -361,7 +380,7 @@ print(
 )
 print("-" * 80)
 best_no_hybrid = min(cost_dynamo, best_cost_cassandra)
-cost_hybrid = problem.objective.value()
+cost_hybrid = round(problem.objective.value(), 2)
 
 print(f"Cost saving compared to best option: {best_no_hybrid - cost_hybrid} €/h")
 if cost_hybrid != best_no_hybrid:

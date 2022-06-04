@@ -5,6 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Zipfian 3",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "1000",
+                "10",
+                "1000",
+                "zipfian",
+                "3",
+                "0.9"
+            ]
+        },
+        {
             "name": "Uniform",
             "type": "python",
             "request": "launch",
