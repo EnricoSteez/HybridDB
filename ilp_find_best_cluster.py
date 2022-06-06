@@ -140,11 +140,7 @@ placements = [j for j in range(len(vm_types) + 1)]
 
 # Placement vector x
 x = pulp.LpVariable.dicts(
-    "Placement",
-    indices=(items, placements),
-    cat=constants.LpInteger,
-    lowBound=0,
-    upBound=1,
+    "Placement", indices=(items, placements), cat=constants.LpBinary
 )
 
 m = pulp.LpVariable.dicts(
