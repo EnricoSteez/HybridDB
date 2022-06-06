@@ -273,7 +273,7 @@ tot_vms = sum(m[j].value() for j in range(len(vm_types)))
 size_cassandra = sum(placement[i, 1:].sum() * s[i] for i in range(N)) * RF
 iops_cassandra = sum(placement[i, 1:].sum() * (t_r[i] + t_w[i] * RF) for i in range(N))
 mbs_cassandra = sum(
-    sum(placement[i, 1:]) * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)
+    placement[i, 1:].sum() * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)
 )
 tot_size = sum(s)
 tot_iops = sum(t_r[i] + t_w[i] * RF for i in range(N))
