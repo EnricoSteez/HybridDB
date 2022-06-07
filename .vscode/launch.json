@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Zipfian 3",
+            "name": "Two Cassandra Clusters",
             "type": "python",
             "request": "launch",
             "program": "${file}",
