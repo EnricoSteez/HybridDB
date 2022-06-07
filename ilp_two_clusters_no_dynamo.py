@@ -284,11 +284,12 @@ print(
     f"Cost of {clustername_1} = {cost_cluster1:.2f}€/h\n"
     f"Cost of {clustername_2} = {cost_cluster2:.2f}€/h\n"
 )
-print(
-    f"IOPS saturation of {clustername_1}: {iops_cluster1/available_iops_1:.2%}\n"
-    f"Bandwidth saturation of cluster {clustername_1}: {bandwidth_cluster1/available_bandwidth_1:.2%}\n"
-    f"Storage saturation of cluster {clustername_1}: {size_cluster1/available_size_1:.2%}"
-)
+if m1_count > 0:
+    print(
+        f"IOPS saturation of {clustername_1}: {iops_cluster1/available_iops_1:.2%}\n"
+        f"Bandwidth saturation of cluster {clustername_1}: {bandwidth_cluster1/available_bandwidth_1:.2%}\n"
+        f"Storage saturation of cluster {clustername_1}: {size_cluster1/available_size_1:.2%}"
+    )
 
 if m2_count > 0:
     print(
