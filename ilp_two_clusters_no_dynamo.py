@@ -31,6 +31,7 @@ vm_costs = params.vm_costs
 stability_period = params.WORKLOAD_STABILITY
 RF = params.REPLICATION_FACTOR
 num_machines = len(vm_types)
+M = 1e5
 
 
 def notify(message):
@@ -146,27 +147,25 @@ sys.stdout = open(filename, "w")
 items = [i for i in range(N)]
 
 # Placement vector x
-x = pulp.LpVariable.dicts("Placement", indices=items, cat=constants.LpBinary)
-
-m1 = pulp.LpVariable.dicts(
-    "Number of machines used in cluster 1",
-    indices=[i for i in range(num_machines)],
-    cat=constants.LpInteger,
-)
-m2 = pulp.LpVariable.dicts(
-    "Number of machines used in cluster 2",
-    indices=[i for i in range(num_machines)],
-    cat=constants.LpInteger,
+x = pulp.LpVariable.dicts(
+    "Placement", indices=(items, vm_types), cat=constants.LpBinary
 )
 
-z1 = pulp.LpVariable.dicts(
-    "Binary variables of m1 outside of 0..RF interval",
-    indices=[i for i in range(num_machines)],
+m = pulp.LpVariable.dicts(
+    "Type of machine used",
+    indices=vm_types,
     cat=constants.LpBinary,
 )
-z2 = pulp.LpVariable.dicts(
-    "Binary variables of m2 outside of 0]..[RF interval",
-    indices=[i for i in range(num_machines)],
+
+z = pulp.LpVariable.dicts(
+    "m outside of 0..RF interval",
+    indices=vm_types,
+    cat=constants.LpBinary,
+)
+
+d = pulp.LpVariable.dicts(
+    "Ensure feasiblity between number of machines and placement",
+    indices=vm_types,
     cat=constants.LpBinary,
 )
 
@@ -178,7 +177,7 @@ s, t_r, t_w = generate_items(
     max_throughput=max_throughput,
 )
 total_size = sum(s)
-len(vm_types)
+num_vms = len(vm_types)
 solver = pulp.getSolver("GUROBI_CMD")
 t0 = time()
 
@@ -187,116 +186,98 @@ problem = pulp.LpProblem("ItemsPlacement", pulp.LpMinimize)
 
 # objective function
 problem += (
-    lpSum([(m1[i] + m2[i]) * vm_costs[i] for i in range(num_machines)])
-    + lpSum([m1[i] + m2[i] for i in range(num_machines)])
-    * params.MAX_SIZE
-    * cost_volume_storage
+    lpSum([m[vmtype] * vm_costs[vmtype] for vmtype in vm_types])
+    + lpSum(m) * params.MAX_SIZE * cost_volume_storage
     + lpSum(t_r[i] + t_w[i] * RF for i in range(N)) * 60 * 60 * cost_volume_iops
     + lpSum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) * 60 * 60 * cost_volume_tp,
     "Minimization of the total cost of the hybrid solution",
 )
 
 # constraints
-problem += lpSum([m1[i] + m2[i] for i in range(num_machines)]) >= RF
+# at least RF machines
+problem += lpSum(m) >= RF
 
-# --------------------########## ENOUGH MEMORY COMBINED TO STORE ALL THE ITEMS ##########--------------------
-problem += (
-    params.MAX_SIZE * lpSum([m1[i] + m2[i] for i in range(num_machines)])
-    >= total_size * RF
-)
+# --------------------########## ENOUGH STORAGE (COMBINED) ##########--------------------
+problem += params.MAX_SIZE * lpSum(m) >= total_size * RF
 
-# --------------------########## ENOUGH IOPS ##########--------------------
-problem += lpSum([x[i] * (t_r[i] + t_w[i] * RF) for i in range(N)]) <= lpSum(
-    [m1[i] * vm_IOPS[i] for i in range(num_machines)]
-)
-problem += lpSum([(1 - x[i]) * (t_r[i] + t_w[i] * RF) for i in range(N)]) <= lpSum(
-    [m2[i] * vm_IOPS[i] for i in range(num_machines)]
-)
-# --------------------########## ENOUGH BANDWIDTH ##########--------------------
-problem += lpSum([x[i] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)]) <= lpSum(
-    [m1[i] * vm_bandwidths[i] for i in range(num_machines)]
-)
-problem += lpSum(
-    [(1 - x[i]) * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)]
-) <= lpSum([m2[i] * vm_bandwidths[i] for i in range(num_machines)])
+for vmtype in vm_types:
+    # --------------------########## ENOUGH IOPS ##########--------------------
+    problem += lpSum(
+        [x[i][vmtype] * (t_r[i] + t_w[i] * RF) for i in range(N)]
+    ) <= lpSum([m[vmtype] * vm_IOPS[vmtype]])
+    # --------------------########## ENOUGH BANDWIDTH ##########--------------------
+    problem += lpSum(
+        [x[i][vmtype] * (t_r[i] * t_w[i] * RF) * s[i] for i in range(N)]
+    ) <= lpSum([m[vmtype] * vm_IOPS[vmtype]])
 
-# --------------------########## EITHER VMs=0 OR VMs>=RF (per every machine type), linearization trick ##########--------------------
-for j in range(num_machines):
-    problem += m1[j] >= RF * z1[j]
-    problem += m1[j] <= 1e5 * z1[j]
+    # ---------########## EITHER #VMs=0 OR #VMs>=RF, linearization trick ##########----------
 
-    problem += m2[j] >= RF * z2[j]
-    problem += m2[j] <= 1e5 * z2[j]
+    # ---------########## ENSURE THAT sum(x[:][vmtype])>0 <--> m[vmtype]>0 ##########----------
+    # introduce binary delta: {lpSum(x[i][vmtype] for i in range(N))} == 0 <--> d==0 | d==1
+    # these are fixing d
+    problem += lpSum(x[i][vmtype] for i in range(N)) > -M * (1 - d)
+    problem += lpSum(x[i][vmtype] for i in range(N)) <= M * d
+    problem += m[vmtype] <= M * d
+    problem += m[vmtype] >= RF - M * (1 - d)
+
+for i in range(N):
+    # --------------------########## ONLY ONE PLACEMENT per item ##########--------------------
+    problem += lpSum(x[i][vmtype] for vmtype in vm_types) == 1
 
 
 result = problem.solve(solver)
 cost_hybrid = round(problem.objective.value(), 2)
 print(f"HYBRID COST -> {cost_hybrid}€")
-placement = [x[i].value() for i in range(N)]
-clustername_1 = extract_type_name(m1)
-clustername_2 = extract_type_name(m2)
-# make the arrays easier to manipulate, eliminate the Variables
-m1 = [int(m1[i].value()) for i in range(num_machines)]
-m2 = [int(m2[i].value()) for i in range(num_machines)]
-m1_count = sum(m1)
-m2_count = sum(m2)
+placement = [x[i][vmtype].value() for i in range(N) for vmtype in vm_types]
 
-items_m1 = int(sum(placement))
-items_m2 = N - items_m1
+print("Used machines:")
+for vmtype in vm_types:
+    tot_items = sum(x[i][vmtype] for i in range(N))
+    if tot_items > 0:
+        print(f"{vmtype} -> {tot_items} items", end=",")
+print()
 
-print(
-    f"Used machines: {clustername_1} and {clustername_2}\n"
-    f"Tot items on {clustername_1}: {items_m1}\n"
-    f"Tot items on {clustername_2}: {items_m2}"
-)
 # *** *** *** *** *** *** *** *** Allocated items *** *** *** *** *** *** *** ***
-size_cluster1 = sum(placement[i] * s[i] for i in range(N)) * RF
-iops_cluster1 = sum(placement[i] * (t_r[i] + t_w[i] * RF) for i in range(N))
-bandwidth_cluster1 = sum(placement[i] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
-size_cluster2 = sum((1 - placement[i]) * s[i] for i in range(N)) * RF
-iops_cluster2 = sum((1 - placement[i]) * (t_r[i] + t_w[i] * RF) for i in range(N))
-bandwidth_cluster2 = sum(
-    (1 - placement[i]) * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)
-)
-# *** *** *** *** *** *** *** *** Available space *** *** *** *** *** *** *** ***
-available_size_1 = params.MAX_SIZE * m1_count
-available_size_2 = params.MAX_SIZE * m2_count
-available_iops_1 = np.dot(m1, vm_IOPS) * m1_count
-available_iops_2 = np.dot(m2, vm_IOPS) * m2_count
-available_bandwidth_1 = np.dot(m1, vm_bandwidths) * m1_count
-available_bandwidth_2 = np.dot(m2, vm_bandwidths) * m2_count
+clustersizes = [
+    sum(placement[i][vmtype] * s[i] * RF for i in range(N)) for vmtype in vm_types
+]
+iops = [
+    sum(placement[i][vmtype] * (t_r[i] + t_w[i] * RF) for i in range(N))
+    for vmtype in vm_types
+]
+bandwidths = [
+    sum(placement[i][vmtype] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+    for vmtype in vm_types
+]
+# *** *** *** *** *** *** *** *** Availabilities *** *** *** *** *** *** *** ***
+available_space_per_cluster = [
+    params.MAX_SIZE * m[vmtype].value() for vmtype in vm_types
+]
+available_iops_per_cluster = [
+    vm_IOPS[vmtype] * m[vmtype].value() for vmtype in vm_types
+]
+available_bandwidth_per_cluster = [
+    vm_bandwidths[vmtype] * m[vmtype].value() for vmtype in vm_types
+]
+
 # *** *** *** *** *** *** *** *** Costs *** *** *** *** *** *** *** ***
-cost_vms_1 = np.dot(m1, vm_costs)  # cost VMs
-cost_vms_2 = np.dot(m2, vm_costs)  # cost VMs
-cost_volume_1 = (
-    params.MAX_SIZE * m1_count * cost_volume_storage
-)  # cost per provisioned MB (MAX SIZE per VM allocated and paid for)
-cost_volume_2 = params.MAX_SIZE * m2_count * cost_volume_storage
-cost_iops_1 = iops_cluster1 * 60 * 60 * cost_volume_iops  # cost IOPS
-cost_iops_2 = iops_cluster2 * 60 * 60 * cost_volume_iops  # cost IOPS
-cost_throughput_1 = bandwidth_cluster1 * 60 * 60 * cost_volume_tp  # cost band
-cost_throughput_2 = bandwidth_cluster2 * 60 * 60 * cost_volume_tp  # cost band
+cost_vms_per_cluster = [m[vmtype] * vm_costs[vmtype] for vmtype in vm_types]
+cost_volume_per_cluster = [
+    params.MAX_SIZE * m[vmtype].value() * cost_volume_storage for vmtype in vm_types
+]  # cost per provisioned MB (MAX SIZE per VM allocated and paid for)
 
-cost_cluster1 = cost_vms_1 + cost_volume_1 + cost_iops_1 + cost_throughput_1
-cost_cluster2 = cost_vms_2 + cost_volume_2 + cost_iops_2 + cost_throughput_2
+cost_iops_per_cluster = np.dot(iops, 60 * 60 * cost_volume_iops)  # cost IOPS
+cost_bandwidth_per_cluster = np.dot(
+    bandwidths, 60 * 60 * cost_volume_iops
+)  # cost bandwidth
 
-print(
-    f"Cost of {clustername_1} = {cost_cluster1:.2f}€/h\n"
-    f"Cost of {clustername_2} = {cost_cluster2:.2f}€/h\n"
+cost_per_cluster = sum(
+    cost_vms_per_cluster
+    + cost_volume_per_cluster
+    + cost_iops_per_cluster
+    + cost_bandwidth_per_cluster
 )
-if m1_count > 0:
-    print(
-        f"IOPS saturation of {clustername_1}: {iops_cluster1/available_iops_1:.2%}\n"
-        f"Bandwidth saturation of cluster {clustername_1}: {bandwidth_cluster1/available_bandwidth_1:.2%}\n"
-        f"Storage saturation of cluster {clustername_1}: {size_cluster1/available_size_1:.2%}"
-    )
 
-if m2_count > 0:
-    print(
-        f"IOPS saturation of {clustername_2}: {iops_cluster2/available_iops_2:.2%}\n"
-        f"Bandwidth saturation of cluster {clustername_2}: {bandwidth_cluster2/available_bandwidth_2:.2%}\n"
-        f"Storage saturation of cluster {clustername_2}: {size_cluster2/available_size_2:.2%}"
-    )
 
 print("-" * 80)
 

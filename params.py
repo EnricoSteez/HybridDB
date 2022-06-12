@@ -44,6 +44,8 @@ vm_IOPS = [
     80000,
 ]
 
+vm_IOPS = dict(zip(vm_types, vm_IOPS))
+
 vm_bandwidths = [
     450,
     750,
@@ -59,6 +61,8 @@ vm_bandwidths = [
     14000,
     19000,
 ]
+
+vm_bandwidths = dict(zip(vm_types, vm_bandwidths))
 
 vm_costs = [
     0.1,
@@ -77,6 +81,8 @@ vm_costs = [
     # 0.536048,
     # 1.072096,
 ]
+
+vm_costs = dict(zip(vm_types, vm_costs))
 
 # GCP
 # Machine type	 Virtual CPUs	Memory	    Price (USD)
