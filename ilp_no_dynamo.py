@@ -181,6 +181,7 @@ num_vms = len(vm_types)
 solver = pulp.getSolver("GUROBI_CMD")
 t0 = time()
 
+
 # Optimization Problem
 problem = pulp.LpProblem("ItemsPlacement", pulp.LpMinimize)
 
@@ -210,15 +211,14 @@ for vmtype in vm_types:
         [x[i][vmtype] * (t_r[i] * t_w[i] * RF) * s[i] for i in range(N)]
     ) <= lpSum([m[vmtype] * vm_IOPS[vmtype]])
 
-    # ---------########## EITHER #VMs=0 OR #VMs>=RF, linearization trick ##########----------
-
     # ---------########## ENSURE THAT sum(x[:][vmtype])>0 <--> m[vmtype]>0 ##########----------
     # introduce binary delta: {lpSum(x[i][vmtype] for i in range(N))} == 0 <--> d==0 | d==1
     # these are fixing d
-    problem += lpSum(x[i][vmtype] for i in range(N)) > -M * (1 - d)
-    problem += lpSum(x[i][vmtype] for i in range(N)) <= M * d
-    problem += m[vmtype] <= M * d
-    problem += m[vmtype] >= RF - M * (1 - d)
+    problem += lpSum(x[i][vmtype] for i in range(N)) > -M * (1 - d[vmtype])
+    problem += lpSum(x[i][vmtype] for i in range(N)) <= M * d[vmtype]
+    # These two are binding the number of machines to d
+    problem += m[vmtype] <= M * d[vmtype]
+    problem += m[vmtype] >= RF - M * (1 - d[vmtype])
 
 for i in range(N):
     # --------------------########## ONLY ONE PLACEMENT per item ##########--------------------
