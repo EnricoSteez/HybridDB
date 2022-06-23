@@ -32,7 +32,7 @@ stability_period = params.WORKLOAD_STABILITY
 RF = params.REPLICATION_FACTOR
 num_machines = len(vm_types)
 M = 1e5
-
+max_storage = params.MAX_SIZE
 
 def notify(message):
     with open("./keys/keys.json", "r") as keys_file:
@@ -188,7 +188,7 @@ problem = pulp.LpProblem("ItemsPlacement", pulp.LpMinimize)
 # objective function
 problem += (
     lpSum([m[vmtype] * vm_costs[vmtype] for vmtype in vm_types])
-    + lpSum(m) * params.MAX_SIZE * cost_volume_storage
+    + lpSum(m) * max_storage * cost_volume_storage
     + lpSum(t_r[i] + t_w[i] * RF for i in range(N)) * 60 * 60 * cost_volume_iops
     + lpSum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) * 60 * 60 * cost_volume_tp,
     "Minimization of the total cost of the hybrid solution",
@@ -196,33 +196,33 @@ problem += (
 
 # constraints
 # at least RF machines
-problem += lpSum(m) >= RF
+problem += lpSum([m[vmtype] for vmtype in vm_types]) >= RF
 
 # --------------------########## ENOUGH STORAGE (COMBINED) ##########--------------------
-problem += params.MAX_SIZE * lpSum(m) >= total_size * RF
+problem += max_storage * lpSum([m[vmtype] for vmtype in vm_types]) >= total_size * RF
 
+# --------------------########## EVERY ITEM IS PLACED IN ONLY ONE MACHINE TYPE ##########--------------------
+for i in range(N):
+    problem += lpSum(x[i][vmtype] for vmtype in vm_types) == 1
+
+# --------------------########## ENOUGH IOPS ##########--------------------
 for vmtype in vm_types:
-    # --------------------########## ENOUGH IOPS ##########--------------------
     problem += lpSum(
         [x[i][vmtype] * (t_r[i] + t_w[i] * RF) for i in range(N)]
-    ) <= lpSum([m[vmtype] * vm_IOPS[vmtype]])
+    ) <= m[vmtype] * vm_IOPS[vmtype]
     # --------------------########## ENOUGH BANDWIDTH ##########--------------------
     problem += lpSum(
         [x[i][vmtype] * (t_r[i] * t_w[i] * RF) * s[i] for i in range(N)]
-    ) <= lpSum([m[vmtype] * vm_IOPS[vmtype]])
+    ) <= m[vmtype] * vm_bandwidths[vmtype]
 
     # ---------########## ENSURE THAT sum(x[:][vmtype])>0 <--> m[vmtype]>0 ##########----------
     # introduce binary delta: {lpSum(x[i][vmtype] for i in range(N))} == 0 <--> d==0 | d==1
-    # these are fixing d
-    problem += lpSum(x[i][vmtype] for i in range(N)) > -M * (1 - d[vmtype])
-    problem += lpSum(x[i][vmtype] for i in range(N)) <= M * d[vmtype]
+    # # these are fixing d
+    # problem += lpSum(x[i][vmtype] for i in range(N)) >= -M * (1 - d[vmtype])
+    # problem += lpSum(x[i][vmtype] for i in range(N)) <= M * d[vmtype]
     # These two are binding the number of machines to d
-    problem += m[vmtype] <= M * d[vmtype]
-    problem += m[vmtype] >= RF - M * (1 - d[vmtype])
-
-for i in range(N):
-    # --------------------########## ONLY ONE PLACEMENT per item ##########--------------------
-    problem += lpSum(x[i][vmtype] for vmtype in vm_types) == 1
+    # problem += m[vmtype] <= M * d[vmtype]
+    # problem += m[vmtype] >= RF - M * (1 - d[vmtype])
 
 
 result = problem.solve(solver)
@@ -251,7 +251,7 @@ bandwidths = [
 ]
 # *** *** *** *** *** *** *** *** Availabilities *** *** *** *** *** *** *** ***
 available_space_per_cluster = [
-    params.MAX_SIZE * m[vmtype].value() for vmtype in vm_types
+    max_storage * m[vmtype].value() for vmtype in vm_types
 ]
 available_iops_per_cluster = [
     vm_IOPS[vmtype] * m[vmtype].value() for vmtype in vm_types
@@ -263,7 +263,7 @@ available_bandwidth_per_cluster = [
 # *** *** *** *** *** *** *** *** Costs *** *** *** *** *** *** *** ***
 cost_vms_per_cluster = [m[vmtype] * vm_costs[vmtype] for vmtype in vm_types]
 cost_volume_per_cluster = [
-    params.MAX_SIZE * m[vmtype].value() * cost_volume_storage for vmtype in vm_types
+    max_storage * m[vmtype].value() * cost_volume_storage for vmtype in vm_types
 ]  # cost per provisioned MB (MAX SIZE per VM allocated and paid for)
 
 cost_iops_per_cluster = np.dot(iops, 60 * 60 * cost_volume_iops)  # cost IOPS
@@ -283,7 +283,7 @@ print("-" * 80)
 
 best_cost_cassandra = np.inf
 for mt in range(num_machines):
-    vms_size = total_size * RF / params.MAX_SIZE
+    vms_size = total_size * RF / max_storage
     vms_io = (sum(t_r) + sum(t_w) * RF) / vm_IOPS[mt]
     vms_band = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) / vm_bandwidths[mt]
 
@@ -292,7 +292,7 @@ for mt in range(num_machines):
     cost_only_cassandra = (
         min_m * vm_costs[mt]
         # Cassandra volumes baseline charge
-        + params.MAX_SIZE * min_m * cost_volume_storage
+        + max_storage * min_m * cost_volume_storage
         # Cassandra volumes IOPS charge
         + (sum(t_r) + sum(t_w) * RF) * 60 * 60 * cost_volume_iops
         # Cassandra volumes performance charge
@@ -304,7 +304,7 @@ for mt in range(num_machines):
     if cost_only_cassandra < best_cost_cassandra:
         best_cost_cassandra = cost_only_cassandra
         only_cassandra_vms = min_m * vm_costs[mt]
-        only_cassandra_volume = params.MAX_SIZE * min_m * cost_volume_storage
+        only_cassandra_volume = max_storage * min_m * cost_volume_storage
         only_cassandra_iops = (sum(t_r) + sum(t_w) * RF) * 60 * 60 * cost_volume_iops
         only_cassandra_band = (
             sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
