@@ -34,6 +34,7 @@ num_machines = len(vm_types)
 M = 1e5
 max_storage = params.MAX_SIZE
 
+
 def notify(message):
     with open("./keys/keys.json", "r") as keys_file:
         k = json.load(keys_file)
@@ -188,14 +189,14 @@ problem = pulp.LpProblem("ItemsPlacement", pulp.LpMinimize)
 # objective function
 problem += (
     lpSum([m[vmtype] * vm_costs[vmtype] for vmtype in vm_types])
-    + lpSum(m) * max_storage * cost_volume_storage
-    + lpSum(t_r[i] + t_w[i] * RF for i in range(N)) * 60 * 60 * cost_volume_iops
-    + lpSum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) * 60 * 60 * cost_volume_tp,
+    + lpSum([m[vmtype] for vmtype in vm_types]) * max_storage * cost_volume_storage
+    + lpSum([t_r[i] + t_w[i] * RF for i in range(N)]) * 60 * 60 * cost_volume_iops
+    + lpSum([(t_r[i] + t_w[i] * RF) * s[i] for i in range(N)]) * 60 * 60 * cost_volume_tp,
     "Minimization of the total cost of the hybrid solution",
 )
 
 # constraints
-# at least RF machines
+# at least RF machines in total
 problem += lpSum([m[vmtype] for vmtype in vm_types]) >= RF
 
 # --------------------########## ENOUGH STORAGE (COMBINED) ##########--------------------
@@ -203,7 +204,7 @@ problem += max_storage * lpSum([m[vmtype] for vmtype in vm_types]) >= total_size
 
 # --------------------########## EVERY ITEM IS PLACED IN ONLY ONE MACHINE TYPE ##########--------------------
 for i in range(N):
-    problem += lpSum(x[i][vmtype] for vmtype in vm_types) == 1
+    problem += lpSum([x[i][vmtype] for vmtype in vm_types]) == 1
 
 # --------------------########## ENOUGH IOPS ##########--------------------
 for vmtype in vm_types:
