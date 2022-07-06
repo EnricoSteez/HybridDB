@@ -1,3 +1,5 @@
+import numpy as np
+
 """Parameters file"""
 MAX_SIZE = 4 * 1e6  # 4TB with MB as baseline
 REPLICATION_FACTOR = 3
@@ -94,23 +96,37 @@ vm_costs = dict(zip(vm_types, vm_costs))
 # General Purpose SSD (gp3) - IOPS	3,000 IOPS free and $0.0058/provisioned IOPS-month over 3,000
 # General Purpose SSD (gp3) - Throughput	125 MB/s free and $0.0462/provisioned MB/s-month over 125
 
-COST_VOLUME_STORAGE = 0.0924 / 30 / 24 / 1e3  # per MB per hour
-COST_VOLUME_IOPS = 0.0058 / 30 / 24  # per IOPS-hour
-COST_VOLUME_THROUGHPUT = 0.0462 / 30 / 24  # $ per MB/s per hour
-MAX_VOLUME_IOPS = dict()
-# TODO create different scripts, one for each volume
+volumes = ["gp2", "gp3", "io1", "st1", "sc1"]
+
+COST_VOLUME_STORAGE = [
+    0.1155,
+    0.0924,
+    0.1449,
+    0.525,
+    0.01764,
+]  # / 30 / 24 / 1e3  # per MB per hour
+COST_VOLUME_STORAGE = np.multiply(COST_VOLUME_STORAGE, 1 / 30 / 24 / 1e3)
+COST_VOLUME_STORAGE = dict(zip(volumes, COST_VOLUME_STORAGE))
+
+COST_VOLUME_IOPS = [0, 0.0058, 0.0756, 0, 0]  # per IOPS-hour
+COST_VOLUME_IOPS = np.multiply(COST_VOLUME_IOPS, 1 / 30 / 24)
+COST_VOLUME_IOPS = dict(zip(volumes, COST_VOLUME_IOPS))
+
+COST_VOLUME_THROUGHPUT = [0, 0.0462 / 30 / 24, 0, 0, 0]  # $ per MB/s per hour
+
 # TODO convert everything to MiB or MB
 # MB to MiB --> * 10^6 / 2^20
 # MiB to MB --> * 2^20 / 10^6
-volumes = ["gp2", "gp3", "io1", "io2", "io2BE"]
+# General Purpose SSD (gp3) - Storage	    $0.0924/GB-month
+# General Purpose SSD (gp3) - IOPS	        3,000 IOPS free and $0.0058/provisioned IOPS-month over 3,000
+# General Purpose SSD (gp3) - Throughput	125 MB/s free and $0.0462/provisioned MB/s-month over 125
+# General Purpose SSD (gp2) Volumes	        $0.1155 per GB-month of provisioned storage
+# Provisioned IOPS SSD (io1) Volumes	    $0.1449 per GB-month of provisioned storage AND $0.0756 per provisioned IOPS-month
+# Throughput Optimized HDD (st1) Volumes	$0.0525 per GB-month of provisioned storage
+# Cold HDD (sc1) Volumes                    $0.01764 per GB-month of provisioned storage
 MAX_VOLUME_IOPS = [16000, 16000, 64000, 64000, 256000]  # MiB/s
-MAX_VOLUME_IOPS = dict(zip(volumes, MAX_VOLUME_IOPS))
-MAX_VOLUME_THROUGHPUT = [250, 1000, 1000, 1000, 4000]  # MiB/s
-# "c4.2xlarge",
-# "c4.4xlarge",
-# "c4.8xlarge",
-# "c4.large",
-# "c4.xlarge",
+
+
 # "c5.12xlarge",
 # "c5.18xlarge",
 # "c5.24xlarge",
