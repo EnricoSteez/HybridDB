@@ -153,7 +153,6 @@ items = [i for i in range(N)]
 # x vector x
 x = pulp.LpVariable.dicts("x", indices=(items, vm_types), cat=constants.LpBinary)
 
-a=[1,2,3,4]
 m = pulp.LpVariable.dicts(
     "Number of used machines per type",
     indices=vm_types,
@@ -184,7 +183,7 @@ total_size = sum(s)
 num_vms = len(vm_types)
 solver = pulp.getSolver("GUROBI_CMD")
 t0 = time()
-cost_hybrid = np.inf
+best_cost_hybrid = np.inf
 for v_type in volume_types:
     # Optimization Problem
     problem = pulp.LpProblem("Placement", pulp.LpMinimize)
@@ -231,7 +230,15 @@ for v_type in volume_types:
         # TODO THEY ARE RELATED TO SIZE AS WELL EXPLAIN THIS!!
         # TODO this one is breaking the problem
         problem += (
-            lpSum([(t_r[i] + t_w[i] * RF) * s[i] * params.IO_FACTOR[v_type] for i in range(N)])
+            lpSum(
+                [
+                    x[i][vmtype]
+                    * (t_r[i] + t_w[i] * RF)
+                    * s[i]
+                    * params.IO_FACTOR[v_type]
+                    for i in range(N)
+                ]
+            )
             <= m[vmtype] * max_volume_iops[v_type]
         )
 
@@ -268,64 +275,24 @@ for v_type in volume_types:
 
     result = problem.solve(solver)
     cost = round(problem.objective.value(), 2)
-    if cost < cost_hybrid:
-        best_cost = cost
-        best_vms = m
+    if cost < best_cost_hybrid:
+        best_cost_hybrid = cost
         best_placement = x
         best_volume = v_type
+        best_vms = {vmtype: m[vmtype].value() for vmtype in vm_types}
 
-    print(f"HYBRID COST ({v_type} volumes)-> {best_cost}€")
+    print(f"HYBRID COST ({v_type} volumes)-> {cost}€")
 
 print("!!!Best solution!!!")
 print("Used machines:")
 for vmtype in vm_types:
-    tot_items = sum(best_placement[i][vmtype].value() for i in range(N))
-    if tot_items > 0:
-        print(f"{best_vms[vmtype].value()} {vmtype} -> {int(tot_items)} items")
+    items = sum(best_placement[i][vmtype].value() for i in range(N))
+    if items > 0:
+        print(f"{best_vms[vmtype]} {vmtype} -> {int(items)} items")
 
 print(f"Used volume: {best_volume}")
-# # *** *** *** *** *** *** *** *** Allocated items *** *** *** *** *** *** *** ***
-# clustersizes = [
-#     sum(x[i][vmtype].value() * s[i] * RF for i in range(N)) for vmtype in vm_types
-# ]
-# iops = [
-#     sum(x[i][vmtype].value() * (t_r[i] + t_w[i] * RF) for i in range(N))
-#     for vmtype in vm_types
-# ]
-# bandwidths = [
-#     sum(x[i][vmtype].value() * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
-#     for vmtype in vm_types
-# ]
-# # *** *** *** *** *** *** *** *** Availabilities *** *** *** *** *** *** *** ***
-# available_space_per_cluster = [max_storage * m[vmtype].value() for vmtype in vm_types]
-# available_iops_per_cluster = [
-#     vm_IOPS[vmtype] * m[vmtype].value() for vmtype in vm_types
-# ]
-# available_bandwidth_per_cluster = [
-#     vm_bandwidths[vmtype] * m[vmtype].value() for vmtype in vm_types
-# ]
-# cost_vms_per_cluster = np.dot(
-#     [m[vmtype].value() for vmtype in vm_types], list(vm_costs.values())
-# )
-# cost_volume_per_cluster = [
-#     max_storage * m[vmtype].value() * cost_volume_storage for vmtype in vm_types
-# ]
-# # cost per provisioned MB (MAX SIZE per VM allocated and paid for)
 
-# cost_iops_per_cluster = np.dot(iops, 60 * 60 * cost_volume_iops)  # cost IOPS
-# cost_bandwidth_per_cluster = np.dot(
-#     bandwidths, 60 * 60 * cost_volume_iops
-# )  # cost bandwidth
-
-# cost_per_cluster = np.sum(
-#     cost_vms_per_cluster
-#     + cost_volume_per_cluster
-#     + cost_iops_per_cluster
-#     + cost_bandwidth_per_cluster
-# )
-
-
-print("-" * 80)
+print("*" * 80)
 best_vm_cassandra = dict()
 best_n_cassandra = dict()
 best_cost_cassandra = dict()
@@ -358,24 +325,28 @@ for volumetype in volume_types:
             best_vm_cassandra[volumetype] = vmtype
             best_n_cassandra[volumetype] = min_m
 # round all costs per volume
-best_cost_cassandra = dict(
-    (v_name, round(cost, 2)) for v_name, cost in best_cost_cassandra.items()
-)
+best_cost_cassandra = {
+    v_name: round(cost, 2) for v_name, cost in best_cost_cassandra.items()
+}
 print("COMPARISON with non-hybrid approach:")
-print(
-    f"Costs of only CASSANDRA: {best_cost_cassandra.values():.2f}€/h, "
-    f"achieved with {best_n_cassandra.values()} machines "
-    f"of type {best_vm_cassandra.values()}\n"
-)
-print("-" * 80)
-best = best_cost_cassandra.values()
-if cost_hybrid != min(best):
+best = np.inf
+for volumetype in volume_types:
+    print(f"### Volume type: '{volumetype}'")
     print(
-        f"Cost saving compared to best option: {best - cost_hybrid} €/h\n"
-        f"Cost saving percentage: {cost_hybrid/best:.2%}"
+        f"Costs of only CASSANDRA: {best_cost_cassandra[volumetype]:.2f}€/h, "
+        f"achieved with {best_n_cassandra[volumetype]} machines "
+        f"of type {best_vm_cassandra[volumetype]}\n"
+    )
+    if best_cost_cassandra[volumetype] < best:
+        best = best_cost_cassandra[volumetype]
+    print("-" * 80)
+if best_cost_hybrid != best:
+    print(
+        f"Cost saving compared to best option: {best - best_cost_hybrid} €/h\n"
+        f"Cost saving percentage: {best_cost_hybrid/best:.2%}"
     )
     with open("results/hybridScenarios.txt", "a") as file:
-        file.write(f"{filename} -> {cost_hybrid/best:.2%}\n")
+        file.write(f"{filename} -> {best_cost_hybrid/best:.2%}\n")
 
 tot_time = time() - t0
 print(f"Took {tot_time:.2f} seconds ")
