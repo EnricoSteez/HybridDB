@@ -41,7 +41,7 @@ def notify(message):
     bot.sendMessage(chat_id=chat_id, text=message)
 
 
-def generate_items(distribution, skew=1.0, custom_size=0.1, max_throughput=20000):
+def generate_items(distribution, skew=1.0, custom_size=0.1, max_throughput=20000.0):
     # ycsb: constant 100KB sizes = 0.1MB, zipfian throughputs
     # uniform: everything uniformely distribuetd
     # custom: sizes from ibm traces, throughputs from YCSB

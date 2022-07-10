@@ -113,7 +113,8 @@ COST_VOLUME_IOPS = np.multiply(COST_VOLUME_IOPS, 1 / 30 / 24)
 COST_VOLUME_IOPS = dict(zip(volumes, COST_VOLUME_IOPS))
 
 COST_VOLUME_THROUGHPUT = [0, 0.0462 / 30 / 24, 0, 0, 0]  # $ per MB/s per hour
-
+COST_VOLUME_THROUGHPUT = dict(zip(volumes, COST_VOLUME_THROUGHPUT))
+# TODO update cost formulation to include different volume costs
 # TODO convert everything to MiB or MB
 # MB to MiB --> * 10^6 / 2^20
 # MiB to MB --> * 2^20 / 10^6
@@ -124,8 +125,24 @@ COST_VOLUME_THROUGHPUT = [0, 0.0462 / 30 / 24, 0, 0, 0]  # $ per MB/s per hour
 # Provisioned IOPS SSD (io1) Volumes	    $0.1449 per GB-month of provisioned storage AND $0.0756 per provisioned IOPS-month
 # Throughput Optimized HDD (st1) Volumes	$0.0525 per GB-month of provisioned storage
 # Cold HDD (sc1) Volumes                    $0.01764 per GB-month of provisioned storage
-MAX_VOLUME_IOPS = [16000, 16000, 64000, 64000, 256000]  # MiB/s
-
+MAX_VOLUME_IOPS = [
+    16000,
+    16000,
+    64000,
+    500,
+    250,
+]  # 16 KiB I/O for SSD(gp2,gp3,io1), 1MiB I/O for HDD(sc1,st1)
+IO_FACTOR = [
+    10 ** 6 / 2 ** 10 / 16,  # MB to KiB, then 1 I/O every 16
+    10 ** 6 / 2 ** 10 / 16,  # MB to KiB, then 1 I/O every 16
+    10 ** 6 / 2 ** 10 / 16,  # MB to KiB, then 1 I/O every 16
+    10 ** 6 / 2 ** 20,  # MB to MiB, then 1 I/O every MB
+    10 ** 6 / 2 ** 20,  # MB to MiB, then 1 I/O every MB
+]
+IO_FACTOR = dict(zip(volumes, IO_FACTOR))
+MAX_VOLUME_IOPS = dict(zip(volumes, MAX_VOLUME_IOPS))
+MAX_VOLUME_THROUGHPUT = [250, 1000, 1000, 500, 250]  # MiB/s
+MAX_VOLUME_THROUGHPUT = dict(zip(volumes, MAX_VOLUME_THROUGHPUT))
 
 # "c5.12xlarge",
 # "c5.18xlarge",

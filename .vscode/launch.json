@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Two Cassandra Clusters",
+            "name": "Only Cassandra, multiple volume types",
             "type": "python",
             "request": "launch",
             "program": "${file}",
@@ -13,8 +13,8 @@
             "justMyCode": true,
             "args": [
                 "1000",
-                "10",
-                "10",
+                "0.1",
+                "1000",
                 "zipfian",
                 "3",
                 "0.9"
