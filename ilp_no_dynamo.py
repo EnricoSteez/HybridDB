@@ -36,6 +36,8 @@ max_storage = params.MAX_SIZE
 volume_types = params.volumes
 max_volume_iops = params.MAX_VOLUME_IOPS
 max_volume_bandwidths = params.MAX_VOLUME_THROUGHPUT
+b = 1
+
 
 def notify(message):
     with open("./keys/keys.json", "r") as keys_file:
@@ -222,7 +224,17 @@ for v_type in volume_types:
     for vmtype in vm_types:
         # --------------------########## ENOUGH IOPS ##########--------------------
         problem += (
-            lpSum([x[i][vmtype] * (t_r[i] + t_w[i] * RF) for i in range(N)])
+            lpSum(
+                [
+                    x[i][vmtype]
+                    * (t_r[i] + t_w[i] * RF)
+                    * s[i]
+                    * 10 ** 6
+                    / 2 ** 10
+                    / 16
+                    for i in range(N)
+                ]
+            )
             <= m[vmtype] * vm_IOPS[vmtype]
         )
         # MAX IOPS per volume

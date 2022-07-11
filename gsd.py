@@ -12,7 +12,7 @@ N = 1000
 count = 0
 script_name = sys.argv[1]
 t0 = time()
-for percent_read in [0.9, 0.95, 0.99]:
+for percent_read in [0.9, 0.95, 0.99, 0.1, 0.5]:
     for skew in [1, 2, 3, 4]:
         for tot_tp in [0.001, 0.01, 0.1, 1, 10, 100, 1000]:
             for items_size in [0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000]:

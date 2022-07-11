@@ -108,8 +108,8 @@ COST_VOLUME_STORAGE = [
 COST_VOLUME_STORAGE = np.multiply(COST_VOLUME_STORAGE, 1 / 30 / 24 / 1e3)
 COST_VOLUME_STORAGE = dict(zip(volumes, COST_VOLUME_STORAGE))
 
-COST_VOLUME_IOPS = [0, 0.0058, 0.0756, 0, 0]  # per IOPS-month  
-COST_VOLUME_IOPS = np.multiply(COST_VOLUME_IOPS, 1 / 30 / 24) # per IOPS-hour
+COST_VOLUME_IOPS = [0, 0.0058, 0.0756, 0, 0]  # per IOPS-month
+COST_VOLUME_IOPS = np.multiply(COST_VOLUME_IOPS, 1 / 30 / 24)  # per IOPS-hour
 COST_VOLUME_IOPS = dict(zip(volumes, COST_VOLUME_IOPS))
 
 COST_VOLUME_THROUGHPUT = [0, 0.0462 / 30 / 24, 0, 0, 0]  # $ per MB/s per hour
