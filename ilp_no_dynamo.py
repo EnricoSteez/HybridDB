@@ -142,7 +142,7 @@ else:
 # this one is always decimal ehehe
 read_percent_filename = read_percent_filename.replace(".", ",")
 
-filename = f"results/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}_r{read_percent_filename}.txt"
+filename = f"../results/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}_r{read_percent_filename}.txt"
 allowed_dists = ["ycsb", "uniform", "custom", "java", "zipfian"]
 if dist not in allowed_dists:
     raise ValueError(f'Distribution: "{dist}" is not allowed')
@@ -297,12 +297,12 @@ for vmtype in vm_types:
     if items > 0:
         print(f"{best_vms_hybrid[vmtype]} {vmtype} -> {int(items)} items")
 
-print(f"Used volume: {best_volume_standard}")
+print(f"Used volume: {best_volume_standard}\n")
 
 print("*" * 80)
+print()
 best_vm_cassandra = dict()
 best_n_cassandra = dict()
-best_cost_cassandra = dict()
 best_cost_cassandra = {vtype: np.inf for vtype in volume_types}
 
 best_cost_standard = np.inf
@@ -321,7 +321,13 @@ for volumetype in volume_types:
             # Cassandra volumes baseline charge
             + max_storage * min_m * cost_volume_storage[volumetype]
             # Cassandra volumes IOPS charge
-            + (sum(t_r) + sum(t_w) * RF) * 60 * 60 * cost_volume_iops[volumetype]
+            + sum(
+                (t_r[i] + t_w[i] * RF) * s[i] * params.IO_FACTOR[volumetype]
+                for i in range(N)
+            )
+            * 60
+            * 60
+            * cost_volume_iops[volumetype]
             # Cassandra volumes performance charge
             + sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
             * 60
@@ -338,8 +344,8 @@ for volumetype in volume_types:
         f"Best cost: {best_cost_cassandra[volumetype]:.2f}€/h, "
         f"achieved with {best_n_cassandra[volumetype]} machines "
         f"of type {best_vm_cassandra[volumetype]}"
-        "-" * 80
     )
+    print("-" * 80)
     if best_cost_cassandra[volumetype] < best_cost_standard:
         best_cost_standard = best_cost_cassandra[volumetype]
         best_volume_standard = volumetype
@@ -347,7 +353,7 @@ for volumetype in volume_types:
         best_machine_count_standard = best_n_cassandra[volumetype]
 
 best_cost_standard = round(best_cost_standard, 2)
-# here they are both rounded to 2 decimals in the same way
+# here they are both rounded to 2 decimals in the same way
 if best_cost_hybrid != best_cost_standard:
     print("COMPARISON with non-hybrid approach:")
     print(
