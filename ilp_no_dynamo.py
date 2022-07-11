@@ -238,8 +238,6 @@ for v_type in volume_types:
             <= m[vmtype] * vm_IOPS[vmtype]
         )
         # MAX IOPS per volume
-        # TODO THEY ARE RELATED TO SIZE AS WELL EXPLAIN THIS!!
-        # TODO this one is breaking the problem
         problem += (
             lpSum(
                 [
@@ -258,8 +256,6 @@ for v_type in volume_types:
             lpSum([x[i][vmtype] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)])
             <= m[vmtype] * vm_bandwidths[vmtype]
         )
-        # Volume max Throughput is in MiB/s and sizes are in MB/s
-        # TODO explain
         problem += (
             lpSum([x[i][vmtype] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)])
             * 10 ** 6
@@ -288,20 +284,20 @@ for v_type in volume_types:
     cost = round(problem.objective.value(), 2)
     if cost < best_cost_hybrid:
         best_cost_hybrid = cost
-        best_placement = x
-        best_volume = v_type
-        best_vms = {vmtype: m[vmtype].value() for vmtype in vm_types}
+        best_placement_hybrid = x
+        best_volume_standard = v_type
+        best_vms_hybrid = {vmtype: m[vmtype].value() for vmtype in vm_types}
 
     print(f"HYBRID COST ({v_type} volumes)-> {cost}€")
 
 print("!!!Best solution!!!")
 print("Used machines:")
 for vmtype in vm_types:
-    items = sum(best_placement[i][vmtype].value() for i in range(N))
+    items = sum(best_placement_hybrid[i][vmtype].value() for i in range(N))
     if items > 0:
-        print(f"{best_vms[vmtype]} {vmtype} -> {int(items)} items")
+        print(f"{best_vms_hybrid[vmtype]} {vmtype} -> {int(items)} items")
 
-print(f"Used volume: {best_volume}")
+print(f"Used volume: {best_volume_standard}")
 
 print("*" * 80)
 best_vm_cassandra = dict()
@@ -309,6 +305,7 @@ best_n_cassandra = dict()
 best_cost_cassandra = dict()
 best_cost_cassandra = {vtype: np.inf for vtype in volume_types}
 
+best_cost_standard = np.inf
 for volumetype in volume_types:
     for vmtype in vm_types:
         vms_size = total_size * RF / max_storage
@@ -335,29 +332,30 @@ for volumetype in volume_types:
             best_cost_cassandra[volumetype] = cost_only_cassandra
             best_vm_cassandra[volumetype] = vmtype
             best_n_cassandra[volumetype] = min_m
-# round all costs per volume
-best_cost_cassandra = {
-    v_name: round(cost, 2) for v_name, cost in best_cost_cassandra.items()
-}
-print("COMPARISON with non-hybrid approach:")
-best = np.inf
-for volumetype in volume_types:
+
     print(f"### Volume type: '{volumetype}'")
     print(
-        f"Costs of only CASSANDRA: {best_cost_cassandra[volumetype]:.2f}€/h, "
+        f"Best cost: {best_cost_cassandra[volumetype]:.2f}€/h, "
         f"achieved with {best_n_cassandra[volumetype]} machines "
-        f"of type {best_vm_cassandra[volumetype]}\n"
+        f"of type {best_vm_cassandra[volumetype]}"
+        "-" * 80
     )
-    if best_cost_cassandra[volumetype] < best:
-        best = best_cost_cassandra[volumetype]
-    print("-" * 80)
-if best_cost_hybrid != best:
+    if best_cost_cassandra[volumetype] < best_cost_standard:
+        best_cost_standard = best_cost_cassandra[volumetype]
+        best_volume_standard = volumetype
+        best_machines_standard = best_vm_cassandra[volumetype]
+        best_machine_count_standard = best_n_cassandra[volumetype]
+
+best_cost_standard = round(best_cost_standard, 2)
+# here they are both rounded to 2 decimals in the same way
+if best_cost_hybrid != best_cost_standard:
+    print("COMPARISON with non-hybrid approach:")
     print(
-        f"Cost saving compared to best option: {best - best_cost_hybrid} €/h\n"
-        f"Cost saving percentage: {best_cost_hybrid/best:.2%}"
+        f"Cost saving compared to best option: {best_cost_standard - best_cost_hybrid} €/h\n"
+        f"Cost saving percentage: {best_cost_hybrid/best_cost_standard:.2%}"
     )
-    with open("results/hybridScenarios.txt", "a") as file:
-        file.write(f"{filename} -> {best_cost_hybrid/best:.2%}\n")
+    with open("../results/hybridScenarios.txt", "a") as file:
+        file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard:.2%}\n")
 
 tot_time = time() - t0
 print(f"Took {tot_time:.2f} seconds ")
