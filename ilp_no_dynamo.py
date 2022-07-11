@@ -37,7 +37,6 @@ volume_types = params.volumes
 max_volume_iops = params.MAX_VOLUME_IOPS
 max_volume_bandwidths = params.MAX_VOLUME_THROUGHPUT
 
-
 def notify(message):
     with open("./keys/keys.json", "r") as keys_file:
         k = json.load(keys_file)
