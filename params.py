@@ -14,93 +14,30 @@ COST_DYNAMO_STORAGE = (
 WORKLOAD_STABILITY = 10
 
 wb = load_workbook("../selection.xlsx")
-print(wb.sheetnames)
-
-vm_types = [
-    "m4.large",
-    "m4.xlarge",
-    "m4.2xlarge",
-    "m4.4xlarge",
-    "m4.10xlarge",
-    "m4.16xlarge",
-    "i3.large",
-    "i3.xlarge",
-    "i3.2xlarge",
-    "i3.4xlarge",
-    "i3.8xlarge",
-    "i3.16xlarge",
-    "i3.metal",
-    # "e2-standard-16",
-    # "e2-standard-32",
-]
-
-vm_IOPS = [
-    3600,
-    6000,
-    8000,
-    16000,
-    32000,
-    65000,
-    3000,
-    6000,
-    12000,
-    16000,
-    32500,
-    65000,
-    80000,
-]
-
-vm_IOPS = dict(zip(vm_types, vm_IOPS))
-
-vm_bandwidths = [
-    450,
-    750,
-    1000,
-    2000,
-    8000,
-    10000,
-    425,
-    850,
-    1700,
-    3500,
-    7000,
-    14000,
-    19000,
-]
-
-vm_bandwidths = dict(zip(vm_types, vm_bandwidths))
-
-vm_costs = [
-    0.1,
-    0.2,
-    0.4,
-    0.8,
-    2,
-    3.2,
-    0.156,
-    0.312,
-    0.624,
-    1.248,
-    2.496,
-    1.992,
-    4.992,
-    # 0.536048,
-    # 1.072096,
-]
-
-vm_costs = dict(zip(vm_types, vm_costs))
-
-# GCP
-# Machine type	 Virtual CPUs	Memory	    Price (USD)
-# e2-standard-16	16	        64GB	    $0.536048
-# e2-standard-32	32	        128GB	    $1.072096
-
+ws = wb["Sheet1"]
+vm_types = ws["B2:B24"]
+vm_types = [cell[0].value for cell in vm_types]
+# print(vm_types)
+# it is unclear why the cell elements are tuples with the second value = Nil,
+# but using [0] works...
+# Here I can do this trick because columns are adjacent
+vm_bandwidths = ws["B2:C24"]
+vm_bandwidths = {vm.value: bandwidth.value for (vm, bandwidth) in vm_bandwidths}
+vm_IOPS = ws["D2:D24"]
+vm_IOPS = [cell[0].value for cell in vm_IOPS]
+vm_IOPS = {vmtype: iops for vmtype, iops in zip(vm_types, vm_IOPS)}
+print(vm_bandwidths)
+print(vm_IOPS)
+vm_costs = ws["F2:F24"]
+vm_costs = [cell[0].value for cell in vm_costs]
+vm_costs = {vmtype:iops for vmtype, iops in zip(vm_types, vm_costs)}
 # AWS volume pricing
 # General Purpose SSD (gp3) - Storage	$0.0924/GB-month
 # General Purpose SSD (gp3) - IOPS	3,000 IOPS free and $0.0058/provisioned IOPS-month over 3,000
 # General Purpose SSD (gp3) - Throughput	125 MB/s free and $0.0462/provisioned MB/s-month over 125
 
-volumes = ["gp2", "gp3", "io1", "st1", "sc1"]
+# volumes = ["gp2", "gp3", "io1", "st1", "sc1"]
+volumes = ["gp2"]
 
 COST_VOLUME_STORAGE = [
     0.1155,
