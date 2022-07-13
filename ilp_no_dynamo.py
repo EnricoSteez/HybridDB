@@ -285,7 +285,7 @@ for v_type in volume_types:
     if cost < best_cost_hybrid:
         best_cost_hybrid = cost
         best_placement_hybrid = x
-        best_volume_standard = v_type
+        best_volume_hybrid = v_type
         best_vms_hybrid = {vmtype: m[vmtype].value() for vmtype in vm_types}
 
     print(f"HYBRID COST ({v_type} volumes)-> {cost}€")
@@ -297,15 +297,15 @@ for vmtype in vm_types:
     if items > 0:
         print(f"{best_vms_hybrid[vmtype]} {vmtype} -> {int(items)} items")
 
-print(f"Used volume: {best_volume_standard}\n")
+print(f"Used volume: {best_volume_hybrid}\n")
 
-print("*" * 80)
-print()
+print("*" * 80, end="\n")
+print("Non hybrid approach: cheapest 'single VM type' clusters per volume type")
 best_vm_cassandra = dict()
 best_n_cassandra = dict()
-best_cost_cassandra = {vtype: np.inf for vtype in volume_types}
+best_costs_cassandra = {vtype: np.inf for vtype in volume_types}
 
-best_cost_standard = np.inf
+best_cost_standard_overall = np.inf
 for volumetype in volume_types:
     for vmtype in vm_types:
         vms_size = total_size * RF / max_storage
@@ -334,34 +334,34 @@ for volumetype in volume_types:
             * 60
             * cost_volume_tp[volumetype]
         )
-        if cost_only_cassandra < best_cost_cassandra[volumetype]:
-            best_cost_cassandra[volumetype] = cost_only_cassandra
+        if cost_only_cassandra < best_costs_cassandra[volumetype]:
+            best_costs_cassandra[volumetype] = cost_only_cassandra
             best_vm_cassandra[volumetype] = vmtype
             best_n_cassandra[volumetype] = min_m
 
     print(f"### Volume type: '{volumetype}'")
     print(
-        f"Best cost: {best_cost_cassandra[volumetype]:.2f}€/h, "
+        f"Best cost: {best_costs_cassandra[volumetype]:.2f}€/h, "
         f"achieved with {best_n_cassandra[volumetype]} machines "
         f"of type {best_vm_cassandra[volumetype]}"
     )
     print("-" * 80)
-    if best_cost_cassandra[volumetype] < best_cost_standard:
-        best_cost_standard = best_cost_cassandra[volumetype]
+    if best_costs_cassandra[volumetype] < best_cost_standard_overall:
+        best_cost_standard_overall = best_costs_cassandra[volumetype]
         best_volume_standard = volumetype
         best_machines_standard = best_vm_cassandra[volumetype]
         best_machine_count_standard = best_n_cassandra[volumetype]
 
-best_cost_standard = round(best_cost_standard, 2)
+best_cost_standard_overall = round(best_cost_standard_overall, 2)
 # here they are both rounded to 2 decimals in the same way
-if best_cost_hybrid != best_cost_standard:
+if best_cost_hybrid != best_cost_standard_overall:
     print("COMPARISON with non-hybrid approach:")
     print(
-        f"Cost saving compared to best option: {best_cost_standard - best_cost_hybrid} €/h\n"
-        f"Cost saving percentage: {best_cost_hybrid/best_cost_standard:.2%}"
+        f"Cost saving compared to best option: {best_cost_standard_overall - best_cost_hybrid} €/h\n"
+        f"Cost saving percentage: {best_cost_hybrid/best_cost_standard_overall:.2%}"
     )
     with open("../results/hybridScenarios.txt", "a") as file:
-        file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard:.2%}\n")
+        file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%}\n")
 
 tot_time = time() - t0
 print(f"Took {tot_time:.2f} seconds ")

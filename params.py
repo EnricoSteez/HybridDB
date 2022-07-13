@@ -1,4 +1,5 @@
 import numpy as np
+from openpyxl import load_workbook
 
 """Parameters file"""
 MAX_SIZE = 4 * 1e6  # 4TB with MB as baseline
@@ -11,6 +12,9 @@ COST_DYNAMO_STORAGE = (
 
 # period (hours) of stability over which the optimizer calculates the total cost
 WORKLOAD_STABILITY = 10
+
+wb = load_workbook("../selection.xlsx")
+print(wb.sheetnames)
 
 vm_types = [
     "m4.large",
