@@ -26,11 +26,18 @@ vm_bandwidths = {vm.value: bandwidth.value for (vm, bandwidth) in vm_bandwidths}
 vm_IOPS = ws["D2:D24"]
 vm_IOPS = [cell[0].value for cell in vm_IOPS]
 vm_IOPS = {vmtype: iops for vmtype, iops in zip(vm_types, vm_IOPS)}
-print(vm_bandwidths)
-print(vm_IOPS)
+# print(vm_bandwidths)
+# print(vm_IOPS)
 vm_costs = ws["F2:F24"]
 vm_costs = [cell[0].value for cell in vm_costs]
-vm_costs = {vmtype:iops for vmtype, iops in zip(vm_types, vm_costs)}
+vm_costs = {vmtype: iops for vmtype, iops in zip(vm_types, vm_costs)}
+# print(vm_types)
+# print()
+# print(vm_bandwidths)
+# print()
+# print(vm_costs)
+# print()
+# print(vm_IOPS)
 # AWS volume pricing
 # General Purpose SSD (gp3) - Storage	$0.0924/GB-month
 # General Purpose SSD (gp3) - IOPS	3,000 IOPS free and $0.0058/provisioned IOPS-month over 3,000
@@ -74,11 +81,11 @@ MAX_VOLUME_IOPS = [
     250,
 ]  # 16 KiB I/O for SSD(gp2,gp3,io1), 1MiB I/O for HDD(sc1,st1)
 IO_FACTOR = [
-    10 ** 6 / 2 ** 10 / 16,  # MB to KiB, then 1 I/O every 16
-    10 ** 6 / 2 ** 10 / 16,  # MB to KiB, then 1 I/O every 16
-    10 ** 6 / 2 ** 10 / 16,  # MB to KiB, then 1 I/O every 16
-    10 ** 6 / 2 ** 20,  # MB to MiB, then 1 I/O every MB
-    10 ** 6 / 2 ** 20,  # MB to MiB, then 1 I/O every MB
+    10**6 / 2**10 / 16,  # MB to KiB, then 1 I/O every 16
+    10**6 / 2**10 / 16,  # MB to KiB, then 1 I/O every 16
+    10**6 / 2**10 / 16,  # MB to KiB, then 1 I/O every 16
+    10**6 / 2**20,  # MB to MiB, then 1 I/O every MB
+    10**6 / 2**20,  # MB to MiB, then 1 I/O every MB
 ]
 IO_FACTOR = dict(zip(volumes, IO_FACTOR))
 MAX_VOLUME_IOPS = dict(zip(volumes, MAX_VOLUME_IOPS))

@@ -17,7 +17,6 @@ from os import path
 from functools import partial
 
 print = partial(print, flush=True)
-
 cost_write = params.COST_DYNAMO_WRITE_UNIT
 cost_read = params.COST_DYNAMO_READ_UNIT
 cost_storage = params.COST_DYNAMO_STORAGE
@@ -185,6 +184,9 @@ num_vms = len(vm_types)
 solver = pulp.getSolver("GUROBI_CMD")
 t0 = time()
 best_cost_hybrid = np.inf
+best_vms_hybrid = dict()
+best_placement_hybrid = dict()
+best_volume_hybrid = ""
 for v_type in volume_types:
     # Optimization Problem
     problem = pulp.LpProblem("Placement", pulp.LpMinimize)
@@ -223,21 +225,22 @@ for v_type in volume_types:
 
     for vmtype in vm_types:
         # --------------------########## ENOUGH IOPS ##########--------------------
+        # VMs
         problem += (
             lpSum(
                 [
                     x[i][vmtype]
                     * (t_r[i] + t_w[i] * RF)
                     * s[i]
-                    * 10 ** 6
-                    / 2 ** 10
+                    * 10**6
+                    / 2**10
                     / 16
                     for i in range(N)
                 ]
             )
             <= m[vmtype] * vm_IOPS[vmtype]
         )
-        # MAX IOPS per volume
+        # VOLUMES
         problem += (
             lpSum(
                 [
@@ -252,14 +255,16 @@ for v_type in volume_types:
         )
 
         # --------------------########## ENOUGH BANDWIDTH ##########--------------------
+        # VMs
         problem += (
             lpSum([x[i][vmtype] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)])
             <= m[vmtype] * vm_bandwidths[vmtype]
         )
+        # VOLUMES
         problem += (
             lpSum([x[i][vmtype] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)])
-            * 10 ** 6
-            / 2 ** 20
+            * 10**6
+            / 2**20
             <= m[vmtype] * max_volume_bandwidths[v_type]
         )
 
@@ -292,10 +297,11 @@ for v_type in volume_types:
 
 print("!!!Best solution!!!")
 print("Used machines:")
-for vmtype in vm_types:
-    items = sum(best_placement_hybrid[i][vmtype].value() for i in range(N))
-    if items > 0:
-        print(f"{best_vms_hybrid[vmtype]} {vmtype} -> {int(items)} items")
+for vmtype, count in best_vms_hybrid.items():
+    if count > 0:
+        print(
+            f"{count} {vmtype} -> {int(sum(best_placement_hybrid[i][vmtype].value() for i in range(N)))} items"
+        )
 
 print(f"Used volume: {best_volume_hybrid}\n")
 
@@ -309,14 +315,32 @@ best_cost_standard_overall = np.inf
 for volumetype in volume_types:
     for vmtype in vm_types:
         vms_size = total_size * RF / max_storage
-        vms_io = (sum(t_r) + sum(t_w) * RF) / vm_IOPS[vmtype]
+        vms_io = (
+            sum(
+                (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16 for i in range(N)
+            )
+            / vm_IOPS[vmtype]
+        )
         vms_band = (
             sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) / vm_bandwidths[vmtype]
         )
+        volumes_io = (
+            sum(
+                (t_r[i] + t_w[i] * RF) * s[i] * params.IO_FACTOR[volumetype]
+                for i in range(N)
+            )
+            / max_volume_iops[volumetype]
+        )
+        volumes_band = (
+            sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+            * 10**6
+            / 2**20
+            / max_volume_bandwidths[volumetype]
+        )
 
-        min_m = int(ceil(max(vms_size, vms_io, vms_band, RF)))
+        min_m = int(ceil(max(vms_size, vms_io, vms_band, RF, volumes_band, volumes_io)))
 
-        cost_only_cassandra = (
+        cost_single_vmtype = (
             min_m * vm_costs[vmtype]
             # Cassandra volumes baseline charge
             + max_storage * min_m * cost_volume_storage[volumetype]
@@ -334,8 +358,8 @@ for volumetype in volume_types:
             * 60
             * cost_volume_tp[volumetype]
         )
-        if cost_only_cassandra < best_costs_cassandra[volumetype]:
-            best_costs_cassandra[volumetype] = cost_only_cassandra
+        if cost_single_vmtype < best_costs_cassandra[volumetype]:
+            best_costs_cassandra[volumetype] = cost_single_vmtype
             best_vm_cassandra[volumetype] = vmtype
             best_n_cassandra[volumetype] = min_m
 
