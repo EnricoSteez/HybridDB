@@ -16,6 +16,8 @@ from os import path
 # import threading
 from functools import partial
 
+from zipfianMerger import mergeZipfians
+
 print = partial(print, flush=True)
 cost_write = params.COST_DYNAMO_WRITE_UNIT
 cost_read = params.COST_DYNAMO_READ_UNIT
@@ -47,56 +49,6 @@ def notify(message):
     bot.sendMessage(chat_id=chat_id, text=message)
 
 
-def generate_items(distribution, skew=1.0, custom_size=0.1, max_throughput=20000.0):
-    # ycsb: constant 100KB sizes = 0.1MB, zipfian throughputs
-    # uniform: everything uniformely distribuetd
-    # custom: sizes from ibm traces, throughputs from YCSB
-    # if distribution == "ycsb":
-    #     s = [custom_size] * N
-    #     t_r = gather_throughputs("readStats.txt", scale)
-    #     t_w = gather_throughputs("writeStats.txt", scale)
-
-    # elif distribution == "uniform":
-    #     # uniform distribution
-    #     # max size for DynamoDB is 400KB = 0.4MB
-    #     s = list((0.4 - 1) * np.random.rand(N) + 1)  # size in MB
-    #     t_r = np.random.rand(N) * 500 * scale
-    #     t_w = np.random.rand(N) * 500 * scale
-
-    # # sizes are IBM, throughputs are YCSB
-    # elif distribution == "custom":
-    #     s = gather_sizes_ibm()
-    #     t_r = gather_throughputs("readStats.txt", scale)
-    #     t_w = gather_throughputs("writeStats.txt", scale)
-
-    # elif distribution == "java":
-    #     s, t_r, t_w = gather_data_java(scale)
-    # elif distribution == "zipfian":
-    s = [custom_size] * N
-    t_r = []
-    t_w = []
-    with open(f"zipfian/{N}_{int(skew)}", "r") as file:
-        for _ in range(N):
-            prob = float(file.readline().split()[0])
-            t_r.append(prob * max_throughput * read_percent)
-            t_w.append(prob * max_throughput * write_percent)
-
-    print(
-        f"Number of items: {len(s)}, max_size={max(s)}MB, min_size={min(s)}MB\n"
-        f"{distribution} distribution, skew={skew}\n"
-        f"throughput read: max={max(t_r):.2e}, min={min(t_r):.2e}\n"
-        f"throughput write: max={max(t_w):.2e}, min={min(t_w):.2e}\n"
-        f"Access ratio: {read_percent:.0%} reads | {write_percent:.0%} writes"
-    )
-    # print(s)
-    # print("SEPARATOR")
-    # print(t_r)
-    # print("SEPARATOR")
-    # print(t_w)
-    # print("SEPARATOR")
-    return s, t_r, t_w
-
-
 def extract_type_name(machine_counts):
     for i in range(len(machine_counts)):
         if machine_counts[i].value() != 0:
@@ -104,47 +56,66 @@ def extract_type_name(machine_counts):
     return None
 
 
-if len(sys.argv) != 7:
+if len(sys.argv) != 11:
     sys.exit(
-        f"Usage: python3 {path.basename(__file__)} <N> <items_size [MB]> <tot_throughput> "
-        f"<uniform|ycsb|custom|java|zipfian> <skew> <read %>"
+        f"Usage: python3 {path.basename(__file__)}"
+        " <N1> <items_size 1 [MB]> <tot_throughput 1> <skew 1> <read % 1>"
+        " <N2> <items_size 2 [MB]> <tot_throughput 2> <skew 2> <read % 2>"
     )
 try:
-    N = int(sys.argv[1])
-    custom_size = float(sys.argv[2])
-    max_throughput = float(sys.argv[3])
-    skew = float(sys.argv[5])
-    read_percent = float(sys.argv[6])
-    write_percent = 1 - read_percent
+    N1 = int(sys.argv[1])
+    size_1 = float(sys.argv[2])
+    tot_throughput_1 = float(sys.argv[3])
+    skew_1 = float(sys.argv[4])
+    read_percent_1 = float(sys.argv[5])
+    N2 = int(sys.argv[6])
+    size_2 = float(sys.argv[7])
+    tot_throughput_2 = float(sys.argv[8])
+    skew_2 = float(sys.argv[9])
+    read_percent_2 = float(sys.argv[10])
 except ValueError:
-    sys.exit("N, items_size, max_throughput and TPscaling must be numbers")
+    sys.exit("Check args: N:int, everything else:float")
+N = N1 + N2
 
-dist = sys.argv[4]
-size_for_filename = str(custom_size)
-throughput_for_filename = str(max_throughput)
-skew_for_filename = str(skew)
-read_percent_filename = str(read_percent)
+size_for_filename1 = str(size_1)
+throughput_for_filename1 = str(tot_throughput_1)
+skew_for_filename1 = str(skew_1)
+read_percent_filename1 = str(read_percent_1)
+size_for_filename2 = str(size_2)
+throughput_for_filename2 = str(tot_throughput_2)
+skew_for_filename2 = str(skew_2)
+read_percent_filename2 = str(read_percent_2)
 # if integer, remove .0 else replace dot with comma
-if custom_size.is_integer():
-    size_for_filename = size_for_filename[:-2]
+if size_1.is_integer():
+    size_for_filename1 = size_for_filename1[:-2]
 else:
-    size_for_filename = size_for_filename.replace(".", ",")
-if max_throughput.is_integer():
-    throughput_for_filename = throughput_for_filename[:-2]
+    size_for_filename2 = size_for_filename1.replace(".", ",")
+if tot_throughput_1.is_integer():
+    throughput_for_filename1 = throughput_for_filename1[:-2]
 else:
-    throughput_for_filename = throughput_for_filename.replace(".", ",")
-if skew.is_integer():
-    skew_for_filename = skew_for_filename[:-2]
+    throughput_for_filename1 = throughput_for_filename1.replace(".", ",")
+if skew_1.is_integer():
+    skew_for_filename1 = skew_for_filename1[:-2]
 else:
-    skew_for_filename = skew_for_filename.replace(".", ",")
+    skew_for_filename1 = skew_for_filename1.replace(".", ",")
+
+if size_2.is_integer():
+    size_for_filename2 = size_for_filename1[:-2]
+else:
+    size_for_filename2 = size_for_filename1.replace(".", ",")
+if tot_throughput_2.is_integer():
+    throughput_for_filename2 = throughput_for_filename1[:-2]
+else:
+    throughput_for_filename2 = throughput_for_filename1.replace(".", ",")
+if skew_2.is_integer():
+    skew_for_filename2 = skew_for_filename1[:-2]
+else:
+    skew_for_filename2 = skew_for_filename1.replace(".", ",")
 
 # this one is always decimal ehehe
-read_percent_filename = read_percent_filename.replace(".", ",")
-
-filename = f"../results/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}_r{read_percent_filename}.txt"
-allowed_dists = ["ycsb", "uniform", "custom", "java", "zipfian"]
-if dist not in allowed_dists:
-    raise ValueError(f'Distribution: "{dist}" is not allowed')
+read_percent_filename1 = read_percent_filename1.replace(".", ",")
+# TODO change filename
+filename = f"../results/{N}_{size_for_filename1}_{throughput_for_filename1}_{skew_for_filename1}_r{read_percent_filename1}.txt"
 
 sys.stdout = open(filename, "w")
 
@@ -173,11 +144,17 @@ d = pulp.LpVariable.dicts(
 )
 
 # sizes in MB, throughputs in ops/s
-s, t_r, t_w = generate_items(
-    distribution=dist,
-    skew=skew,
-    custom_size=custom_size,
-    max_throughput=max_throughput,
+s, t_r, t_w = mergeZipfians(
+    n1=N1,
+    skew1=skew_1,
+    tot_tp_1=tot_throughput_1,
+    read_percent_1=read_percent_1,
+    size1=size_1,
+    n2=N2,
+    skew2=skew_2,
+    tot_tp_2=tot_throughput_2,
+    read_percent_2=read_percent_2,
+    size2=size_2,
 )
 total_size = sum(s)
 num_vms = len(vm_types)
@@ -186,6 +163,7 @@ best_cost_hybrid = np.inf
 best_vms_hybrid = dict()
 best_placement_hybrid = dict()
 best_volume_hybrid = ""
+t0 = time()
 for v_type in volume_types:
     # Optimization Problem
     problem = pulp.LpProblem("Placement", pulp.LpMinimize)
