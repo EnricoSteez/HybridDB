@@ -61,6 +61,7 @@ if len(sys.argv) != 11:
         f"Usage: python3 {path.basename(__file__)}"
         " <N1> <items_size 1 [MB]> <tot_throughput 1> <skew 1> <read % 1>"
         " <N2> <items_size 2 [MB]> <tot_throughput 2> <skew 2> <read % 2>"
+        f"\n (you inserted {len(sys.argv)} args)"
     )
 try:
     N1 = int(sys.argv[1])
@@ -100,22 +101,30 @@ else:
     skew_for_filename1 = skew_for_filename1.replace(".", ",")
 
 if size_2.is_integer():
-    size_for_filename2 = size_for_filename1[:-2]
+    size_for_filename2 = size_for_filename2[:-2]
 else:
-    size_for_filename2 = size_for_filename1.replace(".", ",")
+    size_for_filename2 = size_for_filename2.replace(".", ",")
 if tot_throughput_2.is_integer():
-    throughput_for_filename2 = throughput_for_filename1[:-2]
+    throughput_for_filename2 = throughput_for_filename2[:-2]
 else:
-    throughput_for_filename2 = throughput_for_filename1.replace(".", ",")
+    throughput_for_filename2 = throughput_for_filename2.replace(".", ",")
 if skew_2.is_integer():
-    skew_for_filename2 = skew_for_filename1[:-2]
+    skew_for_filename2 = skew_for_filename2[:-2]
 else:
-    skew_for_filename2 = skew_for_filename1.replace(".", ",")
+    skew_for_filename2 = skew_for_filename2.replace(".", ",")
 
-# this one is always decimal ehehe
+# these are always decimal ehehe
 read_percent_filename1 = read_percent_filename1.replace(".", ",")
-# TODO change filename
-filename = f"../results/{N}_{size_for_filename1}_{throughput_for_filename1}_{skew_for_filename1}_r{read_percent_filename1}.txt"
+read_percent_filename2 = read_percent_filename2.replace(".", ",")
+
+filename = ( 
+    f"../results/"
+    f"{N1}_{size_for_filename1}_{throughput_for_filename1}_"
+    f"{skew_for_filename1}_r{read_percent_filename1}_" 
+    f"{N2}_{size_for_filename2}_{throughput_for_filename2}_"
+    f"{skew_for_filename2}_r{read_percent_filename2}"
+    ".txt" 
+)
 
 sys.stdout = open(filename, "w")
 
@@ -414,7 +423,7 @@ for v_type in volume_types:
 
     print(f"### Volume type: '{v_type}'")
     print(
-        f"Best cost: {best_costs_cassandra[v_type],2}€/h, "
+        f"Best cost: {best_costs_cassandra[v_type]}€/h, "
         f"achieved with {best_n_cassandra[v_type]} machines "
         f"of type {best_vm_cassandra[v_type]}"
     )
@@ -429,7 +438,7 @@ saving_amount = round(best_cost_standard_overall - best_cost_hybrid, 3)
 if saving_amount > 0:
     saving_percent = round(best_cost_hybrid / best_cost_standard_overall, 4)
     print("COMPARISON with non-hybrid approach:")
-    print("SOLVER: {best_cost_hybrid} <-> {best_cost_standard_overall}: MANUAL")
+    print(f"SOLVER: {best_cost_hybrid} <-> {best_cost_standard_overall}: MANUAL")
     print(
         f"Cost saving compared to best option: {saving_amount} €/h\n"
         f"Cost saving percentage: {saving_percent:.2%}"
