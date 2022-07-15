@@ -303,7 +303,70 @@ for vmtype, count in best_vms_hybrid.items():
             f"{count} {vmtype} -> {int(sum(best_placement_hybrid[i][vmtype].value() for i in range(N)))} items"
         )
 
-print(f"Used volume: {best_volume_hybrid}\n")
+# print("1" * 10, end="\n")
+# print(f"Used volume: {best_volume_hybrid}\n")
+total_iops = sum(
+    (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16 for i in range(N)
+)
+# print("2" * 10, end="\n")
+allocated_iops = sum(
+    best_placement_hybrid[i][vmtype].value()
+    * (t_r[i] + t_w[i] * RF)
+    * s[i]
+    * 10**6
+    / 2**10
+    / 16
+    for i in range(N)
+    for vmtype in best_vms_hybrid.keys()
+    if best_vms_hybrid[vmtype] > 0
+)
+# print("3" * 10, end="\n")
+allocated_band = sum(
+    best_placement_hybrid[i][vmtype].value() * (t_r[i] + t_w[i] * RF) * s[i]
+    for i in range(N)
+    for vmtype in best_vms_hybrid.keys()
+    if best_vms_hybrid[vmtype] > 0
+)
+# print("4" * 10, end="\n")
+allocated_size = sum(
+    best_placement_hybrid[i][vmtype].value() * s[i]
+    for i in range(N)
+    for vmtype in best_vms_hybrid.keys()
+    if best_vms_hybrid[vmtype] > 0
+)
+# print("5" * 10, end="\n")
+max_iops_vms = sum(
+    vm_IOPS[vmtype] * number
+    for vmtype, number in best_vms_hybrid.items()
+    if best_vms_hybrid[vmtype] > 0
+)
+# print("6" * 10, end="\n")
+max_band_vms = sum(
+    vm_bandwidths[vmtype] * number
+    for vmtype, number in best_vms_hybrid.items()
+    if best_vms_hybrid[vmtype] > 0
+)
+# print("7" * 10, end="\n")
+max_iops_volumes = sum(
+    max_volume_iops["gp2"] * number for number in best_vms_hybrid.values()
+)
+# print("8" * 10, end="\n")
+
+#
+# print(
+#     f"Solver allocated {allocated_band}MB/s out of {( sum(t_r)+sum(t_w)*RF )*total_size}, VMs provide max {max_band_vms} MB/s "
+# )
+# # print(
+#     f"Solver allocated {allocated_band}MB/s, VOLUMES provide max {max_iops_volumes} MB/s "
+# )
+# print(f"Total IOPS: {total_iops}")
+# print(f"Solver allocated {allocated_iops}IOPS, VMs provide max {max_iops_vms} IOPS")
+# print(
+#     f"Solver allocated {allocated_iops}IOPS, VOLUMES provide max {max_iops_volumes} IOPS"
+# )
+# print(
+#     f"Solver allocated {allocated_size}MB in total, VOLUMES provide max {params.MAX_SIZE} MB"
+# )
 
 print("*" * 80, end="\n")
 print("Non hybrid approach: cheapest 'single VM type' clusters per volume type")
@@ -312,69 +375,77 @@ best_n_cassandra = dict()
 best_costs_cassandra = {vtype: np.inf for vtype in volume_types}
 
 best_cost_standard_overall = np.inf
-for volumetype in volume_types:
+for v_type in volume_types:
     for vmtype in vm_types:
         vms_size = total_size * RF / max_storage
         vms_io = (
-            sum(
-                (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16 for i in range(N)
+            round(
+                sum(
+                    (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16
+                    for i in range(N)
+                ),
+                4,
             )
             / vm_IOPS[vmtype]
         )
         vms_band = (
-            sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)) / vm_bandwidths[vmtype]
+            round(sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)), 4)
+            / vm_bandwidths[vmtype]
         )
         volumes_io = (
-            sum(
-                (t_r[i] + t_w[i] * RF) * s[i] * params.IO_FACTOR[volumetype]
-                for i in range(N)
+            round(
+                sum(
+                    (t_r[i] + t_w[i] * RF) * s[i] * params.IO_FACTOR[v_type]
+                    for i in range(N)
+                ),
+                4,
             )
-            / max_volume_iops[volumetype]
+            / max_volume_iops[v_type]
         )
         volumes_band = (
-            sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+            round(sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)),4)
             * 10**6
             / 2**20
-            / max_volume_bandwidths[volumetype]
+            / max_volume_bandwidths[v_type]
         )
 
         min_m = int(ceil(max(vms_size, vms_io, vms_band, RF, volumes_band, volumes_io)))
 
-        cost_single_vmtype = (
+        cost_only_cassandra = (
             min_m * vm_costs[vmtype]
             # Cassandra volumes baseline charge
-            + max_storage * min_m * cost_volume_storage[volumetype]
+            + max_storage * min_m * cost_volume_storage[v_type]
             # Cassandra volumes IOPS charge
             + sum(
-                (t_r[i] + t_w[i] * RF) * s[i] * params.IO_FACTOR[volumetype]
+                (t_r[i] + t_w[i] * RF) * s[i] * params.IO_FACTOR[v_type]
                 for i in range(N)
             )
             * 60
             * 60
-            * cost_volume_iops[volumetype]
+            * cost_volume_iops[v_type]
             # Cassandra volumes performance charge
             + sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
             * 60
             * 60
-            * cost_volume_tp[volumetype]
+            * cost_volume_tp[v_type]
         )
-        if cost_single_vmtype < best_costs_cassandra[volumetype]:
-            best_costs_cassandra[volumetype] = cost_single_vmtype
-            best_vm_cassandra[volumetype] = vmtype
-            best_n_cassandra[volumetype] = min_m
+        if cost_only_cassandra < best_costs_cassandra[v_type]:
+            best_costs_cassandra[v_type] = cost_only_cassandra
+            best_vm_cassandra[v_type] = vmtype
+            best_n_cassandra[v_type] = min_m
 
-    print(f"### Volume type: '{volumetype}'")
+    print(f"### Volume type: '{v_type}'")
     print(
-        f"Best cost: {best_costs_cassandra[volumetype]:.2f}€/h, "
-        f"achieved with {best_n_cassandra[volumetype]} machines "
-        f"of type {best_vm_cassandra[volumetype]}"
+        f"Best cost: {best_costs_cassandra[v_type]:.2f}€/h, "
+        f"achieved with {best_n_cassandra[v_type]} machines "
+        f"of type {best_vm_cassandra[v_type]}"
     )
     print("-" * 80)
-    if best_costs_cassandra[volumetype] < best_cost_standard_overall:
-        best_cost_standard_overall = best_costs_cassandra[volumetype]
-        best_volume_standard = volumetype
-        best_machines_standard = best_vm_cassandra[volumetype]
-        best_machine_count_standard = best_n_cassandra[volumetype]
+    if best_costs_cassandra[v_type] < best_cost_standard_overall:
+        best_cost_standard_overall = best_costs_cassandra[v_type]
+        best_volume_standard = v_type
+        best_machines_standard = best_vm_cassandra[v_type]
+        best_machine_count_standard = best_n_cassandra[v_type]
 
 best_cost_standard_overall = round(best_cost_standard_overall, 2)
 # here they are both rounded to 2 decimals in the same way
