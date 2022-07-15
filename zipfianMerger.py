@@ -16,19 +16,19 @@ def mergeZipfians(
     t_w = [0.1]
     t_w.clear()
 
-
+     
 
 
     with open(f"zipfian/{n1}_{int(skew1)}", "r") as file:
         for _ in range(n1):
-            prob = float(file.readline().split()[0])/2
+            prob = float(file.readline().split()[0]) / 2
             t_r.append(prob * tot_tp_1 * read_percent_1)
-            t_w.append(prob * tot_tp_1 * (1-read_percent_1))
+            t_w.append(prob * tot_tp_1 * (1 - read_percent_1))
     with open(f"zipfian/{n2}_{int(skew2)}", "r") as file:
         for _ in range(n2):
-            prob = float(file.readline().split()[0])/2
+            prob = float(file.readline().split()[0]) / 2
             t_r.append(prob * tot_tp_2 * read_percent_2)
-            t_w.append(prob * tot_tp_2 * (1-read_percent_2))
+            t_w.append(prob * tot_tp_2 * (1 - read_percent_2))
 
     print(
         f"Number of items: {len(s)}, max_size={max(s)}MB, min_size={min(s)}MB\n"
