@@ -16,9 +16,6 @@ def mergeZipfians(
     t_w = [0.1]
     t_w.clear()
 
-     
-
-
     with open(f"zipfian/{n1}_{int(skew1)}", "r") as file:
         for _ in range(n1):
             prob = float(file.readline().split()[0]) / 2
