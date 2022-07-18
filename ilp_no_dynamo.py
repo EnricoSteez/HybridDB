@@ -1,8 +1,4 @@
 from math import ceil
-from io import BytesIO
-from csv import writer
-import pandas as pd
-from openpyxl import Workbook
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
@@ -190,13 +186,6 @@ best_cost_hybrid = np.inf
 best_vms_hybrid = dict()
 best_placement_hybrid = dict()
 best_volume_hybrid = ""
-wb = Workbook()
-ws = wb.active  # the default one
-ws.title = "Experiments"
-
-row = []
-rows = []
-excel_filename = "experiments.xlsx"
 
 t0 = time()
 
@@ -313,8 +302,6 @@ print("!!!Best solution!!!")
 print("Used machines:")
 for vmtype, count in best_vms_hybrid.items():
     if count > 0:
-        row.append(vmtype)
-        row.append(count)
         print(
             f"{count} {vmtype} -> {int(sum(best_placement_hybrid[i][vmtype].value() for i in range(N)))} items"
         )
@@ -483,9 +470,9 @@ if saving_amount > 0:
             if n != 0:
                 file.write(vm)
         file.write("\n")
-    row.append(round(best_cost_standard_overall))
-    row.append(best_machines_standard)
-    ws.append(row)
+    # row.append(round(best_cost_standard_overall))
+    # row.append(best_machines_standard)
+    # ws.append(row)
 
 tot_time = time() - t0
 print(f"Took {tot_time:.2f} seconds ")

@@ -1,0 +1,28 @@
+from openpyxl import Workbook
+
+wb=Workbook()
+filename = "workloads.xlsx"
+ws = wb.active
+with open("hybridWorkloads.txt","r") as file:
+    for _ in file:
+       line = file.readline().split()
+       N = int(line[0])
+       size = float(line[1])
+       throughput = float(line[2])
+       skew = int(line[3])
+       reads_percent = float(line[4])
+       names = []
+       counts = []
+       count = 5
+       name = line[count]
+       count +=1
+       number = line[count]
+       count +=1
+       while name != "":
+           names.append(name)
+           counts.append(count)
+           name = line[count]
+           count +=1
+           number = line[count]
+           count +=1
+           
