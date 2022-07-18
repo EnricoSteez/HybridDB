@@ -186,6 +186,7 @@ best_cost_hybrid = np.inf
 best_vms_hybrid = dict()
 best_placement_hybrid = dict()
 best_volume_hybrid = ""
+t0 = time()
 for v_type in volume_types:
     # Optimization Problem
     problem = pulp.LpProblem("Placement", pulp.LpMinimize)
@@ -458,6 +459,12 @@ if saving_amount > 0:
     )
     with open("../results/hybridScenarios.txt", "a") as file:
         file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%}\n")
+    with open("../results/hybridWorkloads.txt", "a") as file:
+        file.write(f"{N} {custom_size} {max_throughput} {skew} {read_percent} ")
+        for vm, n in best_vms_hybrid.keys():
+            if n!=0:
+                file.write(vm)
+        file.write("\n")
 
 tot_time = time() - t0
 print(f"Took {tot_time:.2f} seconds ")
