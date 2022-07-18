@@ -462,13 +462,14 @@ if saving_amount > 0:
         f"Cost saving compared to best option: {saving_amount} €/h\n"
         f"Cost saving percentage: {saving_percent:.2%}"
     )
-    with open("../results/hybridScenarios.txt", "a") as file:
+    with open("../results/hybridFiles.txt", "a") as file:
         file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%}\n")
     with open("../results/hybridWorkloads.txt", "a") as file:
         file.write(f"{N} {custom_size} {max_throughput} {skew} {read_percent} ")
-        for vm, n in best_vms_hybrid:
+        for vm, n in best_vms_hybrid.items():
             if n != 0:
                 file.write(vm)
+                file.write(" ")
         file.write("\n")
     # row.append(round(best_cost_standard_overall))
     # row.append(best_machines_standard)
