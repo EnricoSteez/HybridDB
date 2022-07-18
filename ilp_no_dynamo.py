@@ -1,4 +1,8 @@
 from math import ceil
+from io import BytesIO
+from csv import writer
+import pandas as pd
+from openpyxl import Workbook
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
@@ -138,7 +142,7 @@ if skew.is_integer():
 else:
     skew_for_filename = skew_for_filename.replace(".", ",")
 
-# this one is always decimal ehehe
+# this one is always decimal
 read_percent_filename = read_percent_filename.replace(".", ",")
 
 filename = f"../results/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}_r{read_percent_filename}.txt"
@@ -186,7 +190,16 @@ best_cost_hybrid = np.inf
 best_vms_hybrid = dict()
 best_placement_hybrid = dict()
 best_volume_hybrid = ""
+wb = Workbook()
+ws = wb.active  # the default one
+ws.title = "Experiments"
+
+row = []
+rows = []
+excel_filename = "experiments.xlsx"
+
 t0 = time()
+
 for v_type in volume_types:
     # Optimization Problem
     problem = pulp.LpProblem("Placement", pulp.LpMinimize)
@@ -294,14 +307,18 @@ for v_type in volume_types:
         best_vms_hybrid = {vmtype: m[vmtype].value() for vmtype in vm_types}
 
     print(f"HYBRID COST ({v_type} volumes)-> {cost:.2f}€")
-
+    row = [N, custom_size, max_throughput, skew, read_percent]
+# {N} {custom_size} {max_throughput} {skew} {read_percent}
 print("!!!Best solution!!!")
 print("Used machines:")
 for vmtype, count in best_vms_hybrid.items():
     if count > 0:
+        row.append(vmtype)
+        row.append(count)
         print(
             f"{count} {vmtype} -> {int(sum(best_placement_hybrid[i][vmtype].value() for i in range(N)))} items"
         )
+
 
 # print("1" * 10, end="\n")
 # print(f"Used volume: {best_volume_hybrid}\n")
@@ -374,6 +391,7 @@ print("*" * 80, end="\n")
 best_vm_cassandra = dict()
 best_n_cassandra = dict()
 best_costs_cassandra = {vtype: np.inf for vtype in volume_types}
+best_machines_standard = "Error"
 
 best_cost_standard_overall = np.inf
 for v_type in volume_types:
@@ -437,7 +455,7 @@ for v_type in volume_types:
 
     print(f"### Volume type: '{v_type}'")
     print(
-        f"Best cost: {best_costs_cassandra[v_type],2}€/h, "
+        f"Best cost: {best_costs_cassandra[v_type]}€/h, "
         f"achieved with {best_n_cassandra[v_type]} machines "
         f"of type {best_vm_cassandra[v_type]}"
     )
@@ -462,9 +480,12 @@ if saving_amount > 0:
     with open("../results/hybridWorkloads.txt", "a") as file:
         file.write(f"{N} {custom_size} {max_throughput} {skew} {read_percent} ")
         for vm, n in best_vms_hybrid.keys():
-            if n!=0:
+            if n != 0:
                 file.write(vm)
         file.write("\n")
+    row.append(round(best_cost_standard_overall))
+    row.append(best_machines_standard)
+    ws.append(row)
 
 tot_time = time() - t0
 print(f"Took {tot_time:.2f} seconds ")
