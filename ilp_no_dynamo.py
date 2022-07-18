@@ -466,7 +466,7 @@ if saving_amount > 0:
         file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%}\n")
     with open("../results/hybridWorkloads.txt", "a") as file:
         file.write(f"{N} {custom_size} {max_throughput} {skew} {read_percent} ")
-        for vm, n in best_vms_hybrid.keys():
+        for vm, n in best_vms_hybrid:
             if n != 0:
                 file.write(vm)
         file.write("\n")
