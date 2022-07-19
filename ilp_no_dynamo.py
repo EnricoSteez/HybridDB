@@ -1,4 +1,5 @@
 from math import ceil
+import os
 import touch
 from openpyxl import Workbook
 import pulp as pulp
@@ -493,10 +494,20 @@ with open("../results/workloads.txt", "a") as file:
 # Write placement in excel file
 wb = Workbook()
 filename = f"../placements/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}_r{read_percent_filename}.xlsx"
-touch.touch(filename)
+# touch.touch(filename)
+os.system(f"touch {filename}")
 ws = wb.active
 ws.title = "Items"
-ws.append(["ID","Size [MB]","Throughput Read [OPS/s]", "Throughput Write [OPS/s]","Required Bandwidth","Placement"])
+ws.append(
+    [
+        "ID",
+        "Size [MB]",
+        "Throughput Read [OPS/s]",
+        "Throughput Write [OPS/s]",
+        "Required Bandwidth",
+        "Placement",
+    ]
+)
 for i in range(N):
     row = [i, s[i], t_r[i], t_w[i], round(t_r[i] + t_w[i] * RF, 3) * s[i]]
     for vm in vm_types:
