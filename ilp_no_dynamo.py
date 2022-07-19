@@ -290,7 +290,7 @@ for v_type in volume_types:
     result = problem.solve(solver)
     cost = problem.objective.value()
     if cost < best_cost_hybrid:
-        best_cost_hybrid = cost
+        best_cost_hybrid = round(cost, 4)
         best_placement_hybrid = x
         best_volume_hybrid = v_type
         best_vms_hybrid = {vmtype: m[vmtype].value() for vmtype in vm_types}
@@ -379,6 +379,7 @@ best_vm_cassandra = dict()
 best_n_cassandra = dict()
 best_costs_cassandra = {vtype: np.inf for vtype in volume_types}
 best_machines_standard = "Error"
+best_machine_count_standard = 0
 
 best_cost_standard_overall = np.inf
 for v_type in volume_types:
@@ -417,7 +418,7 @@ for v_type in volume_types:
 
         min_m = int(ceil(max(vms_size, vms_io, vms_band, RF, volumes_band, volumes_io)))
 
-        cost_only_cassandra = (
+        cost_only_cassandra = round(
             min_m * vm_costs[vmtype]
             # Cassandra volumes baseline charge
             + max_storage * min_m * cost_volume_storage[v_type]
@@ -433,7 +434,8 @@ for v_type in volume_types:
             + sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
             * 60
             * 60
-            * cost_volume_tp[v_type]
+            * cost_volume_tp[v_type],
+            4,
         )
         if cost_only_cassandra < best_costs_cassandra[v_type]:
             best_costs_cassandra[v_type] = cost_only_cassandra
@@ -448,16 +450,16 @@ for v_type in volume_types:
     )
     print("-" * 80)
     if best_costs_cassandra[v_type] < best_cost_standard_overall:
-        best_cost_standard_overall = best_costs_cassandra[v_type]
+        best_cost_standard_overall = round(best_costs_cassandra[v_type], 4)
         best_volume_standard = v_type
         best_machines_standard = best_vm_cassandra[v_type]
         best_machine_count_standard = best_n_cassandra[v_type]
 
-saving_amount = round(best_cost_standard_overall - best_cost_hybrid, 3)
+saving_amount = round(best_cost_standard_overall - best_cost_hybrid, 4)
 if saving_amount > 0:
     saving_percent = round(best_cost_hybrid / best_cost_standard_overall, 4)
     print("COMPARISON with non-hybrid approach:")
-    print("SOLVER: {best_cost_hybrid} <-> {best_cost_standard_overall}: MANUAL")
+    print(f"SOLVER: {best_cost_hybrid} <-> {best_cost_standard_overall}: MANUAL")
     print(
         f"Cost saving compared to best option: {saving_amount} €/h\n"
         f"Cost saving percentage: {saving_percent:.2%}"
@@ -470,6 +472,11 @@ if saving_amount > 0:
             if n != 0:
                 file.write(vm)
                 file.write(" ")
+                file.write(str(n))
+                file.write(" ")
+        file.write(best_machines_standard)
+        file.write(" ")
+        file.write(str(best_machine_count_standard))
         file.write("\n")
     # row.append(round(best_cost_standard_overall))
     # row.append(best_machines_standard)
