@@ -1,8 +1,7 @@
 from cmath import inf
-from http.client import CONTINUE
 import re
 
-objects = dict()  # key: object_id -> value: (size, tp_read, tp_write)
+objects = dict()  # object_id : [ size, tp_read, tp_write ]
 min_ts = inf
 max_ts = 0
 pattern = re.compile("^[0-9]+ (\w)+\.(\w)+\.(\w)+ [0-9]+( [0-9]+ [0-9]+)?")

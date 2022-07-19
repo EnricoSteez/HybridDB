@@ -1,9 +1,12 @@
 from openpyxl import Workbook
+import os
 
 wb=Workbook()
-filename = "../workloads.xlsx"
+filename = "../results/workloads.xlsx"
+os.system(f"rm {filename}")
 ws = wb.active
-with open("../results/hybridWorkloads.txt","r") as file:
+headlines = ["Item ID", "Size [MB]", "Popularity [IOPS]", "Bandwidth Required [MB/s]", "Placement"]
+with open("../results/workloads.txt","r") as file:
     for line in file.readlines():
         ws.append(line.split())
 wb.save(filename=filename)

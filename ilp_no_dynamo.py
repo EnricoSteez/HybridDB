@@ -1,4 +1,6 @@
 from math import ceil
+import touch
+from openpyxl import Workbook
 import pulp as pulp
 from pulp import constants
 from pulp.pulp import lpSum
@@ -456,8 +458,19 @@ for v_type in volume_types:
         best_machine_count_standard = best_n_cassandra[v_type]
 
 saving_amount = round(best_cost_standard_overall - best_cost_hybrid, 4)
+saving_percent = 1 - round(best_cost_hybrid / best_cost_standard_overall, 4)
+row = [
+    N,
+    custom_size,
+    max_throughput,
+    skew,
+    read_percent,
+    best_machines_standard,
+    best_machine_count_standard,
+    round(saving_percent, 3),
+]
+
 if saving_amount > 0:
-    saving_percent = round(best_cost_hybrid / best_cost_standard_overall, 4)
     print("COMPARISON with non-hybrid approach:")
     print(f"SOLVER: {best_cost_hybrid} <-> {best_cost_standard_overall}: MANUAL")
     print(
@@ -466,24 +479,36 @@ if saving_amount > 0:
     )
     with open("../results/hybridFiles.txt", "a") as file:
         file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%}\n")
-    with open("../results/hybridWorkloads.txt", "a") as file:
-        file.write(f"{N} {custom_size} {max_throughput} {skew} {read_percent} ")
-        for vm, n in best_vms_hybrid.items():
-            if n != 0:
-                file.write(vm)
-                file.write(" ")
-                file.write(str(n))
-                file.write(" ")
-        file.write(best_machines_standard)
-        file.write(" ")
-        file.write(str(best_machine_count_standard))
-        file.write("\n")
-    # row.append(round(best_cost_standard_overall))
-    # row.append(best_machines_standard)
-    # ws.append(row)
+
+    for vm, n in best_vms_hybrid.items():
+        if n != 0:
+            row.append(vm)
+            row.append(n)
+
+# write workload parameters and outcome in txt file to be parsed later
+with open("../results/workloads.txt", "a") as file:
+    file.write(" ".join([str(element) for element in row]))
+    file.write("\n")
+
+# Write placement in excel file
+wb = Workbook()
+filename = f"../placements/{N}_{size_for_filename}_{throughput_for_filename}_{skew_for_filename}_r{read_percent_filename}.xlsx"
+touch.touch(filename)
+ws = wb.active
+ws.title = "Items"
+ws.append(["ID","Size [MB]","Throughput Read [OPS/s]", "Throughput Write [OPS/s]","Required Bandwidth","Placement"])
+for i in range(N):
+    row = [i, s[i], t_r[i], t_w[i], round(t_r[i] + t_w[i] * RF, 3) * s[i]]
+    for vm in vm_types:
+        if best_placement_hybrid[i][vm].value() != 0:
+            row.append(vm)
+    ws.append(row)
+wb.save(filename=filename)
 
 tot_time = time() - t0
 print(f"Took {tot_time:.2f} seconds ")
 
 sys.stdout.close()
+
+
 sys.stdout = sys.__stdout__
