@@ -3,7 +3,7 @@ from openpyxl import Workbook
 wb=Workbook()
 filename = "../workloads.xlsx"
 ws = wb.active
-with open("hybridWorkloads.txt","r") as file:
+with open("../results/hybridWorkloads.txt","r") as file:
     for line in file.readlines():
-        ws.append(line)
+        ws.append(line.split())
 wb.save(filename=filename)
