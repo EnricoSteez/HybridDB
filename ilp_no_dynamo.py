@@ -1,6 +1,5 @@
 from math import ceil
 import os
-import touch
 from openpyxl import Workbook
 import pulp as pulp
 from pulp import constants
@@ -39,7 +38,7 @@ volume_types = params.volumes
 max_volume_iops = params.MAX_VOLUME_IOPS
 max_volume_bandwidths = params.MAX_VOLUME_THROUGHPUT
 b = 1
-a=[1,2,3]
+
 
 def notify(message):
     with open("./keys/keys.json", "r") as keys_file:
