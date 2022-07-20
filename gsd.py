@@ -13,6 +13,7 @@ count = 0
 script_name = sys.argv[1]
 os.system("rm ../results/*")
 os.system("rm ../placements/*")
+os.system("rm ../workloads.xlsx")
 t0 = time()
 for percent_read in [0.9, 0.95, 0.99, 0.1, 0.5]:
     for skew in [1, 2, 3, 4]:
