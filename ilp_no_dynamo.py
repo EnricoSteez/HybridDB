@@ -350,13 +350,13 @@ max_iops_volumes = sum(
 
 
 print(
-    f"Solver allocated {allocated_band}MB/s out of {( sum(t_r)+sum(t_w)*RF )*total_size}, VMs provide max {max_band_vms} MB/s "
+    f"Solver allocated {allocated_band}MB/s out of {( sum(t_r)+sum(t_w)*RF )*total_size}, MACHINES provide max {max_band_vms} MB/s "
 )
 print(
     f"Solver allocated {allocated_band}MB/s, VOLUMES provide max {max_iops_volumes} MB/s "
 )
 print(f"Total IOPS: {total_iops}")
-print(f"Solver allocated {allocated_iops}IOPS, VMs provide max {max_iops_vms} IOPS")
+print(f"Solver allocated {allocated_iops}IOPS, MACHINES provide max {max_iops_vms} IOPS")
 print(
     f"Solver allocated {allocated_iops}IOPS, VOLUMES provide max {max_iops_volumes} IOPS"
 )
