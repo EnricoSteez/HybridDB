@@ -308,13 +308,9 @@ for vmtype, count in best_vms_hybrid.items():
             f"{count} {vmtype} -> {int(sum(best_placement_hybrid[i][vmtype].value() for i in range(N)))} items"
         )
 
-
-# print("1" * 10, end="\n")
-# print(f"Used volume: {best_volume_hybrid}\n")
 total_iops = sum(
     (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16 for i in range(N)
 )
-# print("2" * 10, end="\n")
 allocated_iops = sum(
     best_placement_hybrid[i][vmtype].value()
     * (t_r[i] + t_w[i] * RF)
@@ -326,53 +322,47 @@ allocated_iops = sum(
     for vmtype in best_vms_hybrid.keys()
     if best_vms_hybrid[vmtype] > 0
 )
-# print("3" * 10, end="\n")
 allocated_band = sum(
     best_placement_hybrid[i][vmtype].value() * (t_r[i] + t_w[i] * RF) * s[i]
     for i in range(N)
     for vmtype in best_vms_hybrid.keys()
     if best_vms_hybrid[vmtype] > 0
 )
-# print("4" * 10, end="\n")
 allocated_size = sum(
     best_placement_hybrid[i][vmtype].value() * s[i]
     for i in range(N)
     for vmtype in best_vms_hybrid.keys()
     if best_vms_hybrid[vmtype] > 0
 )
-# print("5" * 10, end="\n")
 max_iops_vms = sum(
     vm_IOPS[vmtype] * number
     for vmtype, number in best_vms_hybrid.items()
     if best_vms_hybrid[vmtype] > 0
 )
-# print("6" * 10, end="\n")
 max_band_vms = sum(
     vm_bandwidths[vmtype] * number
     for vmtype, number in best_vms_hybrid.items()
     if best_vms_hybrid[vmtype] > 0
 )
-# print("7" * 10, end="\n")
 max_iops_volumes = sum(
     max_volume_iops["gp2"] * number for number in best_vms_hybrid.values()
 )
-# print("8" * 10, end="\n")
 
-#
-# print(
-#     f"Solver allocated {allocated_band}MB/s out of {( sum(t_r)+sum(t_w)*RF )*total_size}, VMs provide max {max_band_vms} MB/s "
-# )
-# # print(
-#     f"Solver allocated {allocated_band}MB/s, VOLUMES provide max {max_iops_volumes} MB/s "
-# )
-# print(f"Total IOPS: {total_iops}")
-# print(f"Solver allocated {allocated_iops}IOPS, VMs provide max {max_iops_vms} IOPS")
-# print(
-#     f"Solver allocated {allocated_iops}IOPS, VOLUMES provide max {max_iops_volumes} IOPS"
-# )
-# print(
-#     f"Solver allocated {allocated_size}MB in total, VOLUMES provide max {params.MAX_SIZE} MB"
-# )
+
+print(
+    f"Solver allocated {allocated_band}MB/s out of {( sum(t_r)+sum(t_w)*RF )*total_size}, VMs provide max {max_band_vms} MB/s "
+)
+print(
+    f"Solver allocated {allocated_band}MB/s, VOLUMES provide max {max_iops_volumes} MB/s "
+)
+print(f"Total IOPS: {total_iops}")
+print(f"Solver allocated {allocated_iops}IOPS, VMs provide max {max_iops_vms} IOPS")
+print(
+    f"Solver allocated {allocated_iops}IOPS, VOLUMES provide max {max_iops_volumes} IOPS"
+)
+print(
+    f"Solver allocated {allocated_size}MB in total, VOLUMES provide max {params.MAX_SIZE} MB"
+)
 
 print("*" * 80, end="\n")
 print("Non hybrid approach: cheapest 'single VM type' clusters per volume type")
