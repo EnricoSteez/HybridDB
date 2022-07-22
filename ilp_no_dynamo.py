@@ -314,8 +314,8 @@ for v_type in volume_types:
             x[i][vm].value() * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)
         )
         allocated_size[vm] = sum(x[i][vm].value() * s[i] for i in range(N))
-        max_iops_vms[vm] = sum(vm_IOPS[vm] * m[vm].value())
-        max_band_vms[vm] = sum(vm_bandwidths[vm] * m[vm].value())
+        max_iops_vms[vm] = vm_IOPS[vm] * m[vm].value()
+        max_band_vms[vm] = vm_bandwidths[vm] * m[vm].value()
 
     max_iops_volumes = max_volume_iops[v_type] * sum(m[vm].value() for vm in vm_types)
     max_band_volumes = max_volume_bandwidths[v_type] * sum(
