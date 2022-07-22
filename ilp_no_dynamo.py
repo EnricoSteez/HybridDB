@@ -410,6 +410,7 @@ best_n_cassandra = dict()
 best_costs_cassandra = {vtype: np.inf for vtype in volume_types}
 best_machines_standard = "Error"
 best_machine_count_standard = 0
+best_volume_standard=""
 
 best_cost_standard_overall = np.inf
 for v_type in volume_types:
@@ -495,6 +496,7 @@ row = [
     read_percent,
     best_machines_standard,
     best_machine_count_standard,
+    best_volume_standard,
     round(saving_percent, 3),
 ]
 
@@ -506,12 +508,13 @@ if saving_amount > 0:
         f"Cost saving percentage: {saving_percent:.2%}"
     )
     with open("../results/hybridFiles.txt", "a") as file:
-        file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%}\n")
+        file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%} ({best_volume_hybrid})\n")
 
     for vm, n in best_vms_hybrid.items():
         if n != 0:
             row.append(vm)
             row.append(n)
+    row.append(best_volume_hybrid)
 
 # write workload parameters and outcome in txt file to be parsed later
 with open("../results/workloads.txt", "a") as file:
