@@ -85,7 +85,7 @@ def generate_items(distribution, skew=1.0, custom_size=0.1, max_throughput=20000
 
     print(
         f"Number of items: {len(s)}, max_size={max(s)}MB, min_size={min(s)}MB\n"
-        f"{distribution} distribution, skew={skew}\n"
+        f"{distribution.capitalize()} distribution, skew={skew}\n"
         f"throughput read: max={max(t_r):.2e}, min={min(t_r):.2e}\n"
         f"throughput write: max={max(t_w):.2e}, min={min(t_w):.2e}\n"
         f"Access ratio: {read_percent:.0%} reads | {write_percent:.0%} writes"
@@ -200,6 +200,11 @@ total_iops = sum(
     (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16 for i in range(N)
 )
 total_band = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
+print()
+print("-" * 80)
+print(f"Total IOPS: {total_iops:.3f} IO/s")
+print(f"Total BANDWIDTH: {total_band:.3f}MB/s")
+print(f"Total SIZE: {total_size}")
 for v_type in volume_types:
     # Optimization Problem
     problem = pulp.LpProblem("Placement", pulp.LpMinimize)
@@ -305,6 +310,9 @@ for v_type in volume_types:
     allocated_band = dict()
     max_iops_vms = dict()
     max_band_vms = dict()
+    print("*" * 20, end="")
+    print(f" {v_type} ",end="")
+    print("*" * 20)
     for vm in vm_types:
         allocated_iops[vm] = sum(
             x[i][vm].value() * (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16
@@ -316,32 +324,60 @@ for v_type in volume_types:
         allocated_size[vm] = sum(x[i][vm].value() * s[i] for i in range(N))
         max_iops_vms[vm] = vm_IOPS[vm] * m[vm].value()
         max_band_vms[vm] = vm_bandwidths[vm] * m[vm].value()
-
-    max_iops_volumes = max_volume_iops[v_type] * sum(m[vm].value() for vm in vm_types)
-    max_band_volumes = max_volume_bandwidths[v_type] * sum(
-        m[vm].value() for vm in vm_types
+    # tot IOPS available from volumes
+    max_iops_volumes = (
+        max_volume_iops[v_type]
+        * params.IO_FACTOR[v_type]
+        * sum(m[vm].value() for vm in vm_types)
     )
-    print(f"Total IOPS: {total_iops}")
-    print(f"Total BANDWIDTH: {total_band}")
+    # tot bandwidth available from volumes
+    max_band_volumes = (
+        max_volume_bandwidths[v_type]
+        * sum(m[vm].value() for vm in vm_types)
+        * 2**20
+        / 10**6
+    )  # volumes band is in MiB -> convert to MB
     for vm in vm_types:
         if m[vm].value() > 0:
-            print(f"----- {m[vm].value()} -----")
+            print(f"***** {m[vm].value()} {vm} *****")
             print(
-                f"Solver allocated {allocated_iops[vm]}IOPS, MACHINES provide max {max_iops_vms[vm]:.2f} IOPS"
+                f"Solver allocated {allocated_iops[vm]:.2f} IOPS, "
+                f"these MACHINES provide max {max_iops_vms[vm]:.2f} IOPS"
             )
             print(
-                f"Solver allocated {allocated_band}MB/s out of {total_band:.2f}, MACHINES provide max {max_band_vms:.2f} MB/s "
+                f"Solver allocated {allocated_band[vm]:.2f} MB/s "
+                f"out of {total_band:.2f}, these MACHINES provide "
+                f"max {max_band_vms[vm]:.3f} MB/s "
             )
-            print(f"Total SIZE: {total_size}")
+
     print(
-        f"Solver allocated {sum(allocated_iops[vm] for vm in vm_types)}MB/s, VOLUMES provide max {max_iops_volumes:.2f} MB/s "
+        f"Solver allocated {sum(allocated_iops[vm] for vm in vm_types):.2f}MB/s, "
+        f"VOLUMES provide max {max_iops_volumes:.2f} MB/s "
     )
     print(
-        f"Solver allocated {sum(allocated_iops[vm] for vm in vm_types)}IOPS, VOLUMES provide max {max_iops_volumes:.2f} IOPS"
+        f"Solver allocated {sum(allocated_iops[vm] for vm in vm_types):.2f}IOPS, "
+        f"VOLUMES provide max {max_iops_volumes:.2f} IOPS"
     )
     print(
-        f"Solver allocated {allocated_size}MB in total, VOLUMES provide max {params.MAX_SIZE} MB"
+        f"Solver allocated {sum(allocated_size[vm] for vm in vm_types):.2f}MB in total, "
+        f"VOLUMES provide max {params.MAX_SIZE} MB"
     )
+    iops_sat_vm = sum(allocated_iops[vm] for vm in vm_types) / sum(
+        vm_IOPS[vm] * m[vm].value() for vm in vm_types
+    )
+    iops_sat_vol = sum(allocated_iops[vm] for vm in vm_types) / max_iops_volumes
+    band_sat_vm = sum(allocated_band[vm] for vm in vm_types) / sum(
+        vm_bandwidths[vm] * m[vm].value() for vm in vm_types
+    )
+    band_sat_vol = sum(allocated_band[vm] for vm in vm_types) / max_band_volumes
+    size_sat_vol = sum(allocated_size[vm] for vm in vm_types) / (
+        params.MAX_SIZE * sum(m[vm].value() for vm in vm_types)
+    )
+    print(f"IOPS SATURATION (VMs): {iops_sat_vm:.2%}")
+    print(f"IOPS SATURATION (Volumes): {iops_sat_vol:.2%}")
+    print(f"BANDWIDTH SATURATION (VMs): {band_sat_vm:.2%}")
+    print(f"BANDWIDTH SATURATION (Volumes): {band_sat_vol:.2%}")
+    print(f"SIZE SATURATION (Volumes): {size_sat_vol:.2%}")
     if cost < best_cost_hybrid:
         best_cost_hybrid = round(cost, 4)
         best_placement_hybrid = x
@@ -349,10 +385,13 @@ for v_type in volume_types:
         best_vms_hybrid = {vmtype: m[vmtype].value() for vmtype in vm_types}
 
     # prettier print :)
-    hybrid = "HYBRID" if sum(m[vm].value() for vm in vm_types)>0 else "SOLVER"
+    hybrid = "HYBRID" if sum(m[vm].value() for vm in vm_types) > 0 else "SOLVER"
     print(f"{hybrid} COST ({v_type} volumes)-> {cost:.2f}€")
+    print("-" * 80)
 
 
+print("-" * 80)
+print()
 row = [N, custom_size, max_throughput, skew, read_percent]
 print("!!!Best solution!!!")
 print("Used machines:")
@@ -361,6 +400,7 @@ for vmtype, count in best_vms_hybrid.items():
         print(
             f"{count} {vmtype} -> {int(sum(best_placement_hybrid[i][vmtype].value() for i in range(N)))} items"
         )
+print(f"Used volume:{best_volume_hybrid}")
 
 print("*" * 80, end="\n")
 print("Non hybrid approach: cheapest 'single VM type' clusters per volume type")
@@ -434,7 +474,7 @@ for v_type in volume_types:
 
     print(f"### Volume type: '{v_type}'")
     print(
-        f"Best cost: {best_costs_cassandra[v_type]}€/h, "
+        f"Best cost: {best_costs_cassandra[v_type]} €/h, "
         f"achieved with {best_n_cassandra[v_type]} machines "
         f"of type {best_vm_cassandra[v_type]}"
     )
@@ -487,7 +527,6 @@ filename = (
     f"_{skew_for_filename}"
     f"_r{read_percent_filename}.xlsx"
 )
-# touch.touch(filename)
 os.system(f"touch {filename}")
 ws = wb.active
 ws.title = "Items"
