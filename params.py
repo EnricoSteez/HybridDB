@@ -43,8 +43,8 @@ vm_costs = {vmtype: iops for vmtype, iops in zip(vm_types, vm_costs)}
 # General Purpose SSD (gp3) - IOPS	3,000 IOPS free and $0.0058/provisioned IOPS-month over 3,000
 # General Purpose SSD (gp3) - Throughput	125 MB/s free and $0.0462/provisioned MB/s-month over 125
 
-# volumes = ["gp2", "gp3", "io1", "st1", "sc1"]
-volumes = ["gp2"]
+volumes = ["gp2", "gp3", "io1", "st1", "sc1"]
+# volumes = ["gp2"]
 
 COST_VOLUME_STORAGE = [
     0.1155,
