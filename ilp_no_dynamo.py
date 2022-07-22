@@ -311,7 +311,7 @@ for v_type in volume_types:
     max_iops_vms = dict()
     max_band_vms = dict()
     print("*" * 20, end="")
-    print(f" {v_type} ",end="")
+    print(f" {v_type} ", end="")
     print("*" * 20)
     for vm in vm_types:
         allocated_iops[vm] = sum(
@@ -351,8 +351,8 @@ for v_type in volume_types:
             )
 
     print(
-        f"Solver allocated {sum(allocated_iops[vm] for vm in vm_types):.2f}MB/s, "
-        f"VOLUMES provide max {max_iops_volumes:.2f} MB/s "
+        f"Solver allocated {sum(allocated_band[vm] for vm in vm_types):.2f}MB/s, "
+        f"VOLUMES provide max {max_band_volumes:.2f} MB/s "
     )
     print(
         f"Solver allocated {sum(allocated_iops[vm] for vm in vm_types):.2f}IOPS, "
@@ -370,7 +370,7 @@ for v_type in volume_types:
         vm_bandwidths[vm] * m[vm].value() for vm in vm_types
     )
     band_sat_vol = sum(allocated_band[vm] for vm in vm_types) / max_band_volumes
-    size_sat_vol = sum(allocated_size[vm] for vm in vm_types) / (
+    size_sat_vol = total_size / (
         params.MAX_SIZE * sum(m[vm].value() for vm in vm_types)
     )
     print(f"IOPS SATURATION (VMs): {iops_sat_vm:.2%}")
@@ -410,12 +410,17 @@ best_n_cassandra = dict()
 best_costs_cassandra = {vtype: np.inf for vtype in volume_types}
 best_machines_standard = "Error"
 best_machine_count_standard = 0
-best_volume_standard=""
+best_volume_standard = ""
 
 best_cost_standard_overall = np.inf
 for v_type in volume_types:
+    n_vms_io = 0
+    n_vms_band = 0
+    n_volumes_band = 0
+    n_volumes_io = 0
+    n_size = 0
     for vmtype in vm_types:
-        vms_size = total_size * RF / max_storage
+        volumes_size = total_size * RF / max_storage
         vms_io = (
             round(
                 sum(
@@ -447,7 +452,9 @@ for v_type in volume_types:
             / max_volume_bandwidths[v_type]
         )
 
-        min_m = int(ceil(max(vms_size, vms_io, vms_band, RF, volumes_band, volumes_io)))
+        min_m = int(
+            ceil(max(volumes_size, vms_io, vms_band, RF, volumes_band, volumes_io))
+        )
 
         cost_only_cassandra = round(
             min_m * vm_costs[vmtype]
@@ -472,8 +479,19 @@ for v_type in volume_types:
             best_costs_cassandra[v_type] = cost_only_cassandra
             best_vm_cassandra[v_type] = vmtype
             best_n_cassandra[v_type] = min_m
+            n_vms_io = vms_io
+            n_volumes_io = volumes_io
+            n_vms_band = vms_band
+            n_volumes_band = volumes_band
+            n_size = volumes_size
 
     print(f"### Volume type: '{v_type}'")
+    print(f"Min VMs due to VM IOPS: {n_vms_io}")
+    print(f"Min VMs due to VM Bandwidth: {n_vms_band}")
+    print(f"Min VMs due to Volume IOPS: {n_volumes_io}")
+    print(f"Min VMs due to Volume Bandwidth: {n_volumes_band}")
+    print(f"Min VMs due to Size: {n_size}")
+
     print(
         f"Best cost: {best_costs_cassandra[v_type]} €/h, "
         f"achieved with {best_n_cassandra[v_type]} machines "
@@ -508,7 +526,9 @@ if saving_amount > 0:
         f"Cost saving percentage: {saving_percent:.2%}"
     )
     with open("../results/hybridFiles.txt", "a") as file:
-        file.write(f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%} ({best_volume_hybrid})\n")
+        file.write(
+            f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%} ({best_volume_hybrid})\n"
+        )
 
     for vm, n in best_vms_hybrid.items():
         if n != 0:
