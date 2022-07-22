@@ -196,9 +196,7 @@ best_volume_hybrid = ""
 
 t0 = time()
 
-total_iops = sum(
-    (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16 for i in range(N)
-)
+total_iops = sum((t_r[i] + t_w[i] * RF) for i in range(N))
 total_band = sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N))
 print()
 print("-" * 80)
@@ -315,8 +313,7 @@ for v_type in volume_types:
     print("*" * 20)
     for vm in vm_types:
         allocated_iops[vm] = sum(
-            x[i][vm].value() * (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16
-            for i in range(N)
+            x[i][vm].value() * (t_r[i] + t_w[i] * RF) for i in range(N)
         )
         allocated_band[vm] = sum(
             x[i][vm].value() * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)
@@ -351,15 +348,15 @@ for v_type in volume_types:
             )
 
     print(
-        f"Solver allocated {sum(allocated_band[vm] for vm in vm_types):.2f}MB/s, "
+        f"Solver allocated {sum(allocated_band[vm] for vm in vm_types):.2f} MB/s, "
         f"VOLUMES provide max {max_band_volumes:.2f} MB/s "
     )
     print(
-        f"Solver allocated {sum(allocated_iops[vm] for vm in vm_types):.2f}IOPS, "
+        f"Solver allocated {sum(allocated_iops[vm] for vm in vm_types):.2f} IOPS, "
         f"VOLUMES provide max {max_iops_volumes:.2f} IOPS"
     )
     print(
-        f"Solver allocated {sum(allocated_size[vm] for vm in vm_types):.2f}MB in total, "
+        f"Solver allocated {sum(allocated_size[vm] for vm in vm_types):.2f} MB in total, "
         f"VOLUMES provide max {params.MAX_SIZE} MB"
     )
     iops_sat_vm = sum(allocated_iops[vm] for vm in vm_types) / sum(
