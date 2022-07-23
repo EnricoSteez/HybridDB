@@ -21,14 +21,15 @@ vm_types = [cell[0].value for cell in vm_types]
 # it is unclear why the cell elements are tuples with the second value = Nil,
 # but using [0] works...
 # Here I can do this trick because columns are adjacent
-vm_bandwidths = ws["B2:C24"]
-vm_bandwidths = {vm.value: bandwidth.value for (vm, bandwidth) in vm_bandwidths}
-vm_IOPS = ws["D2:D24"]
+vm_bandwidths = ws["D2:D24"]
+vm_bandwidths = [cell[0].value for cell in vm_bandwidths]
+vm_bandwidths = {vmtype: iops for vmtype, iops in zip(vm_types, vm_bandwidths)}
+vm_IOPS = ws["E2:E24"]
 vm_IOPS = [cell[0].value for cell in vm_IOPS]
 vm_IOPS = {vmtype: iops for vmtype, iops in zip(vm_types, vm_IOPS)}
 # print(vm_bandwidths)
 # print(vm_IOPS)
-vm_costs = ws["F2:F24"]
+vm_costs = ws["C2:C24"]
 vm_costs = [cell[0].value for cell in vm_costs]
 vm_costs = {vmtype: iops for vmtype, iops in zip(vm_types, vm_costs)}
 # print(vm_types)
@@ -89,4 +90,5 @@ IO_FACTOR = [
 IO_FACTOR = dict(zip(volumes, IO_FACTOR))
 MAX_VOLUME_IOPS = dict(zip(volumes, MAX_VOLUME_IOPS))
 MAX_VOLUME_THROUGHPUT = [250, 1000, 1000, 500, 250]  # MiB/s
+MAX_VOLUME_THROUGHPUT = np.multiply(MAX_VOLUME_THROUGHPUT,2**20/10**6)
 MAX_VOLUME_THROUGHPUT = dict(zip(volumes, MAX_VOLUME_THROUGHPUT))

@@ -241,7 +241,7 @@ for v_type in volume_types:
 
     for vmtype in vm_types:
         # --------------------########## ENOUGH IOPS ##########--------------------
-        # VMs
+        # VMs (1 IO = 16 KiB)
         problem += (
             lpSum(
                 [
@@ -279,8 +279,6 @@ for v_type in volume_types:
         # VOLUMES
         problem += (
             lpSum([x[i][vmtype] * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)])
-            * 10**6
-            / 2**20
             <= m[vmtype] * max_volume_bandwidths[v_type]
         )
 
@@ -303,78 +301,88 @@ for v_type in volume_types:
 
     result = problem.solve(solver)
     cost = problem.objective.value()
-    allocated_iops = dict()
+    tot_vms = sum(m[vm].value() for vm in vm_types)
+    allocated_machine_iops = dict()
     allocated_size = dict()
     allocated_band = dict()
-    max_iops_vms = dict()
-    max_band_vms = dict()
+    available_machine_iops = dict()
+    available_band_machines = dict()
+    available_band_volumes = dict()
+    allocated_volume_iops = dict()
+    available_volume_iops = dict()
+    available_size = dict()
     print("*" * 20, end="")
     print(f" {v_type} ", end="")
     print("*" * 20)
     for vm in vm_types:
-        allocated_iops[vm] = sum(
-            x[i][vm].value() * (t_r[i] + t_w[i] * RF) for i in range(N)
+        # MACHINE IOPS are NOT absolute user's issued IOPS but:
+        # IOPS * size (KiB) / 16 -> { 16KiB per IO }
+        allocated_machine_iops[vm] = sum(
+            x[i][vm].value() * (t_r[i] + t_w[i] * RF) * s[i] * 10**6 / 2**10 / 16
+            for i in range(N)
         )
+        allocated_volume_iops[vm] = sum(
+            x[i][vm].value() * (t_r[i] + t_w[i] * RF) * s[i] * params.IO_FACTOR[v_type]
+            for i in range(N)
+        )
+        # this is always in MB/s so no conversion necessary
         allocated_band[vm] = sum(
             x[i][vm].value() * (t_r[i] + t_w[i] * RF) * s[i] for i in range(N)
         )
+        # also in MB/s
         allocated_size[vm] = sum(x[i][vm].value() * s[i] for i in range(N))
-        max_iops_vms[vm] = vm_IOPS[vm] * m[vm].value()
-        max_band_vms[vm] = vm_bandwidths[vm] * m[vm].value()
-    # tot IOPS available from volumes
-    max_iops_volumes = (
-        max_volume_iops[v_type]
-        * params.IO_FACTOR[v_type]
-        * sum(m[vm].value() for vm in vm_types)
-    )
-    # tot bandwidth available from volumes
-    max_band_volumes = (
-        max_volume_bandwidths[v_type]
-        * sum(m[vm].value() for vm in vm_types)
-        * 2**20
-        / 10**6
-    )  # volumes band is in MiB -> convert to MB
+        available_machine_iops[vm] = vm_IOPS[vm] * m[vm].value()
+        available_volume_iops[vm] = max_volume_iops[v_type] * m[vm].value()
+        available_band_machines[vm] = vm_bandwidths[vm] * m[vm].value()
+        available_band_volumes[vm] = max_volume_bandwidths[v_type] * m[vm].value()
+        available_size[vm] = params.MAX_SIZE * m[vm].value()
+
     for vm in vm_types:
         if m[vm].value() > 0:
             print(f"***** {m[vm].value()} {vm} *****")
             print(
-                f"Solver allocated {allocated_iops[vm]:.2f} IOPS, "
-                f"these MACHINES provide max {max_iops_vms[vm]:.2f} IOPS"
+                f"Solver allocated {allocated_machine_iops[vm]:.4f} MACHINE IOPS "
+                f"out of {total_iops*total_size*10**6/2**10/16:.4f} MACHINE IOPS\n"
+                f"which is equivalent to {allocated_volume_iops[vm]:.4f} VOLUME IOPS "
+                f"out of {total_iops*total_size*params.IO_FACTOR[v_type]:.4f} VOLUME IOPS"
             )
             print(
-                f"Solver allocated {allocated_band[vm]:.2f} MB/s "
-                f"out of {total_band:.2f}, these MACHINES provide "
-                f"max {max_band_vms[vm]:.3f} MB/s "
+                f"{m[vm].value()} {vm} MACHINES provide max {available_machine_iops[vm]:.4f} MACHINE IOPS"
             )
+            print(
+                f"{m[vm].value()} {v_type} VOLUMES provide max {max_volume_iops[v_type] * m[vm].value()} IOPS"
+            )
+            print("-----")
+            print(
+                f"Solver allocated {allocated_band[vm]:.2f} MB/s"
+                f"out of {total_band:.2f} MB/s"
+            )
+            print(
+                f"{m[vm].value()} {vm} MACHINES provide max {available_band_machines[vm]:.2f} MB/s "
+            )
+            print(
+                f"{m[vm].value()} {v_type} VOLUMES provide max {max_volume_bandwidths[v_type] * m[vm].value():.0f} MB/s "
+            )
+            print("-----")
+            print(f"Solver allocated {allocated_size[vm]} MB")
+            print(
+                f"{m[vm].value()} {v_type} VOLUMES provide max {params.MAX_SIZE*m[vm].value():.0f} MB"
+            )
+    iops_sat_vm = sum(allocated_machine_iops.values()) / sum(
+        available_machine_iops.values()
+    )
+    iops_sat_vol = sum(allocated_volume_iops.values()) / sum(
+        available_volume_iops.values()
+    )
+    band_sat_vm = sum(allocated_band.values()) / sum(available_band_machines.values())
+    band_sat_vol = sum(allocated_band.values()) / sum(available_band_volumes.values())
+    size_sat_vol = total_size / (params.MAX_SIZE * tot_vms)
+    print(f"TOTAL IOPS SATURATION (VMs): {iops_sat_vm:.2%}")
+    print(f"TOTAL IOPS SATURATION (Volumes): {iops_sat_vol:.2%}")
+    print(f"TOTAL BANDWIDTH SATURATION (VMs): {band_sat_vm:.2%}")
+    print(f"TOTAL BANDWIDTH SATURATION (Volumes): {band_sat_vol:.2%}")
+    print(f"TOTAL SIZE SATURATION (Volumes): {size_sat_vol:.2%}")
 
-    print(
-        f"Solver allocated {sum(allocated_band[vm] for vm in vm_types):.2f} MB/s, "
-        f"VOLUMES provide max {max_band_volumes:.2f} MB/s "
-    )
-    print(
-        f"Solver allocated {sum(allocated_iops[vm] for vm in vm_types):.2f} IOPS, "
-        f"VOLUMES provide max {max_iops_volumes:.2f} IOPS"
-    )
-    print(
-        f"Solver allocated {sum(allocated_size[vm] for vm in vm_types):.2f} MB in total, "
-        f"VOLUMES provide max {params.MAX_SIZE} MB"
-    )
-    iops_sat_vm = sum(allocated_iops[vm] for vm in vm_types) / sum(
-        vm_IOPS[vm] * m[vm].value() for vm in vm_types
-    )
-    iops_sat_vol = sum(allocated_iops[vm] for vm in vm_types) / max_iops_volumes
-    band_sat_vm = sum(allocated_band[vm] for vm in vm_types) / sum(
-        vm_bandwidths[vm] * m[vm].value() for vm in vm_types
-    )
-    band_sat_vol = sum(allocated_band[vm] for vm in vm_types) / max_band_volumes
-    size_sat_vol = total_size / (
-        params.MAX_SIZE * sum(m[vm].value() for vm in vm_types)
-    )
-    print(f"IOPS SATURATION (VMs): {iops_sat_vm:.2%}")
-    print(f"IOPS SATURATION (Volumes): {iops_sat_vol:.2%}")
-    print(f"BANDWIDTH SATURATION (VMs): {band_sat_vm:.2%}")
-    print(f"BANDWIDTH SATURATION (Volumes): {band_sat_vol:.2%}")
-    print(f"SIZE SATURATION (Volumes): {size_sat_vol:.2%}")
     if cost < best_cost_hybrid:
         best_cost_hybrid = round(cost, 4)
         best_placement_hybrid = x
@@ -444,8 +452,6 @@ for v_type in volume_types:
         )
         volumes_band = (
             round(sum((t_r[i] + t_w[i] * RF) * s[i] for i in range(N)), 4)
-            * 10**6
-            / 2**20
             / max_volume_bandwidths[v_type]
         )
 
