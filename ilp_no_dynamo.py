@@ -8,11 +8,8 @@ import params
 import numpy as np
 import sys
 from time import time
-
 # from time import gmtime
 # from time import strftime
-import json
-import telegram
 from os import path
 
 # import threading
@@ -37,17 +34,6 @@ max_storage = params.MAX_SIZE
 volume_types = params.volumes
 max_volume_iops = params.MAX_VOLUME_IOPS
 max_volume_bandwidths = params.MAX_VOLUME_THROUGHPUT
-b = 1
-
-
-def notify(message):
-    with open("./keys/keys.json", "r") as keys_file:
-        k = json.load(keys_file)
-        token = k["telegram_token"]
-        chat_id = k["telegram_chat_id"]
-    bot = telegram.Bot(token=token)
-    bot.sendMessage(chat_id=chat_id, text=message)
-
 
 def generate_items(distribution, skew=1.0, custom_size=0.1, max_throughput=20000.0):
     # ycsb: constant 100KB sizes = 0.1MB, zipfian throughputs
