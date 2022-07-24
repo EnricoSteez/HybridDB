@@ -13,6 +13,7 @@ from functools import partial
 from generation import generate_items
 
 print = partial(print, flush=True)
+# Import parameters from file
 cost_write = params.COST_DYNAMO_WRITE_UNIT
 cost_read = params.COST_DYNAMO_READ_UNIT
 cost_storage = params.COST_DYNAMO_STORAGE
@@ -25,7 +26,6 @@ vm_bandwidths = params.vm_bandwidths
 vm_costs = params.vm_costs
 stability_period = params.WORKLOAD_STABILITY
 RF = params.REPLICATION_FACTOR
-num_machines = len(vm_types)
 M = 1e5
 max_storage = params.MAX_SIZE
 volume_types = params.volumes
