@@ -8,11 +8,7 @@ import params
 import numpy as np
 import sys
 from time import time
-# from time import gmtime
-# from time import strftime
 from os import path
-
-# import threading
 from functools import partial
 
 print = partial(print, flush=True)
