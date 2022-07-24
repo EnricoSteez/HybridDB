@@ -10,6 +10,7 @@ import sys
 from time import time
 from os import path
 from functools import partial
+from generation import generate_items
 
 print = partial(print, flush=True)
 cost_write = params.COST_DYNAMO_WRITE_UNIT
@@ -30,56 +31,6 @@ max_storage = params.MAX_SIZE
 volume_types = params.volumes
 max_volume_iops = params.MAX_VOLUME_IOPS
 max_volume_bandwidths = params.MAX_VOLUME_THROUGHPUT
-
-def generate_items(distribution, skew=1.0, custom_size=0.1, max_throughput=20000.0):
-    # ycsb: constant 100KB sizes = 0.1MB, zipfian throughputs
-    # uniform: everything uniformely distribuetd
-    # custom: sizes from ibm traces, throughputs from YCSB
-    # if distribution == "ycsb":
-    #     s = [custom_size] * N
-    #     t_r = gather_throughputs("readStats.txt", scale)
-    #     t_w = gather_throughputs("writeStats.txt", scale)
-
-    # elif distribution == "uniform":
-    #     # uniform distribution
-    #     # max size for DynamoDB is 400KB = 0.4MB
-    #     s = list((0.4 - 1) * np.random.rand(N) + 1)  # size in MB
-    #     t_r = np.random.rand(N) * 500 * scale
-    #     t_w = np.random.rand(N) * 500 * scale
-
-    # # sizes are IBM, throughputs are YCSB
-    # elif distribution == "custom":
-    #     s = gather_sizes_ibm()
-    #     t_r = gather_throughputs("readStats.txt", scale)
-    #     t_w = gather_throughputs("writeStats.txt", scale)
-
-    # elif distribution == "java":
-    #     s, t_r, t_w = gather_data_java(scale)
-    # elif distribution == "zipfian":
-    s = [custom_size] * N
-    t_r = []
-    t_w = []
-    with open(f"zipfian/{N}_{int(skew)}", "r") as file:
-        for _ in range(N):
-            prob = float(file.readline().split()[0])
-            t_r.append(prob * max_throughput * read_percent)
-            t_w.append(prob * max_throughput * write_percent)
-
-    print(
-        f"Number of items: {len(s)}, max_size={max(s)}MB, min_size={min(s)}MB\n"
-        f"{distribution.capitalize()} distribution, skew={skew}\n"
-        f"throughput read: max={max(t_r):.2e}, min={min(t_r):.2e}\n"
-        f"throughput write: max={max(t_w):.2e}, min={min(t_w):.2e}\n"
-        f"Access ratio: {read_percent:.0%} reads | {write_percent:.0%} writes"
-    )
-    # print(s)
-    # print("SEPARATOR")
-    # print(t_r)
-    # print("SEPARATOR")
-    # print(t_w)
-    # print("SEPARATOR")
-    return s, t_r, t_w
-
 
 def extract_type_name(machine_counts):
     for i in range(len(machine_counts)):
@@ -163,10 +114,12 @@ d = pulp.LpVariable.dicts(
 
 # sizes in MB, throughputs in ops/s
 s, t_r, t_w = generate_items(
+    N,
     distribution=dist,
     skew=skew,
     custom_size=custom_size,
     max_throughput=max_throughput,
+    read_percent=read_percent
 )
 total_size = sum(s)
 num_vms = len(vm_types)
