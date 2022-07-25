@@ -463,19 +463,20 @@ if saving_amount > 0:
         f"Cost saving compared to best option: {saving_amount} €/h\n"
         f"Cost saving percentage: {saving_percent:.2%}"
     )
-    with open("../results/hybridFiles.txt", "a") as file:
+    with open("../hybridFiles.txt", "a") as file:
         file.write(
             f"{filename} -> {best_cost_hybrid/best_cost_standard_overall:.2%} ({best_volume_hybrid})\n"
         )
 
+    # eventually append hybrid stuff to workloads
     for vm, n in best_vms_hybrid.items():
         if n != 0:
             row.append(vm)
             row.append(n)
     row.append(best_volume_hybrid)
 
-# write workload parameters and outcome in txt file to be parsed later
-with open("../results/workloads.txt", "a") as file:
+# write all workload parameters and outcome in txt file to be parsed later
+with open("../workloads.txt", "a") as file:
     file.write(" ".join([str(element) for element in row]))
     file.write("\n")
 

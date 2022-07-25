@@ -11,9 +11,15 @@ chat_id = "907706827"
 N = 1000
 count = 0
 script_name = sys.argv[1]
-os.system("rm ../results/*")
-os.system("rm ../placements/*")
-os.system("rm ../workloads.xlsx")
+if os.path.exists("../results/*"):
+    os.remove("../results/*")
+if os.path.exists("../placements/*"):
+    os.remove("../placements/*")
+if os.path.exists("../workloads.txt"):
+    os.remove("../workloads.txt")
+if os.path.exists("../hybridFiles.xlsx"):
+    os.remove("../hybridFiles.xlsx")
+
 t0 = time()
 for percent_read in [0.9, 0.95, 0.99, 0.1, 0.5]:
     for skew in [1, 2, 3, 4]:
