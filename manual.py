@@ -8,15 +8,19 @@ from time import strftime
 
 token = "5187998346:AAFPwXQsNR1EQi2e7osOswEsFHAjDxiTpMk"
 chat_id = "907706827"
-count = 0
-script_name = sys.argv[1]
-os.system("rm ../results/*")
-os.system("mkdir ../results")
-os.system("rm ../placements/*")
-os.system("mkdir ../placements")
-os.system("rm ../workloads.xlsx")
+
+if os.path.exists("../results/*"):
+    os.remove("../results/*")
+if os.path.exists("../placements/*"):
+    os.remove("../placements/*")
+if os.path.exists("../workloads.txt"):
+    os.remove("../workloads.txt")
+if os.path.exists("../hybridFiles.xlsx"):
+    os.remove("../hybridFiles.xlsx")
+
 t0 = time()
 N = 1000
+count = 0
 skew = 2
 for percent_read1 in [0.5, 0.95]:
     for tot_tp1 in [0.1, 100]:
